@@ -1,9 +1,3 @@
-//
-//  IpAddr.swift
-//  IpParser
-//
-//  Created by 孟祥文 on 2021/6/6.
-//
 
 import Foundation
 
