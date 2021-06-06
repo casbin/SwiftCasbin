@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import Regex
+import IpParser
 
 extension Util {
     /// KeyMatch determines whether key1 matches the pattern of key2 (similar to RESTful path), key2 can contain a "＊".
@@ -74,9 +75,32 @@ extension Util {
         }
         return regexMatch(key1, "^\(key2)$")
     }
-    //TODO:IpMatch
     public static func ipMatch(_ key1:String,_ key2: String) -> Bool {
-        fatalError("")
+        let key2Split = key2.split(separator: "/")
+        let ipAddr2 = String(key2Split[0])
+        guard let ipAddr1 = IpAddr.init(key1),let ipAddr2 = IpAddr.init(ipAddr2) else {
+           fatalError("invalid argument \(key1),\(key2)")
+        }
+        if key2Split.count == 2 {
+            switch UInt8(key2Split[1]) {
+            case .some(let netmask):
+                switch IpNetwork.newTruncate(networkAddress: ipAddr2, netmask: netmask) {
+                case .success(let network):
+                    return network.contains(ip: ipAddr1)
+                case .failure(let e) :
+                    fatalError("invalid ip netmask \(e.description)")
+                }
+            default:
+                fatalError("invalid netmask \(key2Split[1])")
+            }
+        } else {
+            if case let (.V4(ip1),.V6(ip2)) = (ipAddr1,ipAddr2) {
+                if let ip2 = ip2.toIpv4() {
+                    return ip2 == ip1
+                }
+            }
+            return ipAddr1 == ipAddr2
+        }
     }
     //TODO:GlobMatch
     public static func globMatch(_ key1:String,_ key2: String) -> Bool {

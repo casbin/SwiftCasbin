@@ -25,6 +25,14 @@ final class KeyMatchTests: XCTestCase {
         XCTAssertTrue(Util.keyMatch3("/foo/baz/foo", "/foo/{bar}/foo"))
         XCTAssertTrue(!Util.keyMatch3("/baz", "/foo"))
     }
+    func testIpMatch() {
+        XCTAssertTrue(Util.ipMatch("::1", "::0:1"))
+        XCTAssertTrue(Util.ipMatch("192.168.1.1", "192.168.1.1"))
+        XCTAssertTrue(Util.ipMatch("192.168.2.123", "192.168.2.0/24"))
+        XCTAssertTrue(Util.ipMatch("192.168.2.123", "192.168.2.123/16"))
+        XCTAssertFalse(Util.ipMatch("::1", "127.0.0.2"))
+        XCTAssertFalse(Util.ipMatch("192.168.2.189", "192.168.1.134/26"))
+    }
 }
 
 
