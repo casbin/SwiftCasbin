@@ -15,7 +15,7 @@
 import NIO
 public final class DefaultModel {
     var model: [String:[String:Assertion]] = [:]
-    public func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
+    public static func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
         Config.from(file: file,fileIo: fileIo,on: eventloop).flatMap {
             let model = DefaultModel.init()
             for sec in ["r","p","e","m","g"] {
@@ -27,11 +27,32 @@ public final class DefaultModel {
             return eventloop.makeSucceededFuture(model)
         }
     }
+    public static func from(text:String,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
+        Config.from(text: text, on: eventloop).flatMap {
+            let model = DefaultModel.init()
+            for sec in ["r","p","e","m","g"] {
+                let r =  model.loadSection(cfg: $0, sec: sec)
+                if case .failure(let e) = r {
+                    return eventloop.makeFailedFuture(e)
+                }
+            }
+            return eventloop.makeSucceededFuture(model)
+        }
+        
+    }
     public init() {
         
     }
     func loadSection(cfg:Config,sec:String) -> CasbinResult<Void> {
-        .success(())
+        var i = 1
+        while true {
+            if case let .success(b) = loadAssertion(cfg: cfg, sec: sec, key: "\(sec)\(getKeySuffix(i: i))"),b == false {
+                break
+            } else {
+                i += 1
+            }
+        }
+        return .success(())
     }
     
     func loadAssertion(cfg:Config,sec:String,key:String) -> CasbinResult<Bool> {
@@ -52,11 +73,11 @@ public final class DefaultModel {
             }
         }
         return secName.map { s in
-            let val = cfg.get(key: "\(s):\(key)")
+            let val = cfg.get(key: "\(s)::\(key)")
             if val.isEmpty {
                 return false
             }
-            return addDef(sec: s, key: key, value: val)
+            return addDef(sec: sec, key: key, value: val)
         }
     }
     func getKeySuffix(i:Int) -> String {
@@ -70,7 +91,7 @@ extension DefaultModel:Model {
     }
     
     
-    public   func addDef(sec:String,key:String,value:String) -> Bool {
+    public func addDef(sec:String,key:String,value:String) -> Bool {
         let ast = Assertion.init(key: key, value: Util.removeComment(value))
         if ast.value.isEmpty {
             return false
@@ -91,7 +112,7 @@ extension DefaultModel:Model {
         return true
     }
     
-    public  func buildRolelinks(rm:RoleManager) -> CasbinResult<Void> {
+    public func buildRolelinks(rm:RoleManager) -> CasbinResult<Void> {
         if let asts = model["g"] {
             for ast in asts.values {
               let r = ast.buildRolelinkes(rm: rm)
@@ -105,7 +126,7 @@ extension DefaultModel:Model {
         }
         return .success(())
     }
-    public  func buildIncrementalRoleLinks(
+    public func buildIncrementalRoleLinks(
         rm:RoleManager,
         eventData:EventData)-> CasbinResult<Void> {
         
@@ -138,7 +159,7 @@ extension DefaultModel:Model {
         }
         return false
     }
-    public  func addPolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
+    public func addPolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
         var allAdded = true
         if let ast = model[sec]?[ptype] {
             for rule in rules {
@@ -151,14 +172,14 @@ extension DefaultModel:Model {
         }
         return allAdded
     }
-    public  func getPolicy(sec:String,ptype:String) -> [[String]] {
+    public func getPolicy(sec:String,ptype:String) -> [[String]] {
         if let ast = model[sec]?[ptype] {
            return ast.policy
         }
         return []
     }
     
-    public  func getFilteredPolicy(sec:String,
+    public func getFilteredPolicy(sec:String,
                            ptype:String,
                            fieldIndex:Int,
                            fieldValues:[String])-> [[String]] {
@@ -180,17 +201,17 @@ extension DefaultModel:Model {
         }
         return res
     }
-    public  func hasPolicy(sec:String,ptype:String,rule:[String]) -> Bool {
+    public func hasPolicy(sec:String,ptype:String,rule:[String]) -> Bool {
         getPolicy(sec: sec, ptype: ptype).contains(rule)
     }
-    public  func getValuesForFieldInPolicy(sec:String,ptype:String,fieldIndex:Int) -> [String] {
+    public func getValuesForFieldInPolicy(sec:String,ptype:String,fieldIndex:Int) -> [String] {
         getPolicy(sec: sec, ptype: ptype).reduce([]) { acc, x in
             var acc = acc
             acc.append(x[fieldIndex])
             return acc
         }
     }
-    public  func removePolicy(sec:String,ptype:String,rule: [String]) -> Bool {
+    public func removePolicy(sec:String,ptype:String,rule: [String]) -> Bool {
        if let ast = model[sec]?[ptype] {
         ast.policy.removeAll {
             $0 == rule
@@ -199,7 +220,7 @@ extension DefaultModel:Model {
         }
         return false
     }
-    public  func removePolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
+    public func removePolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
         var allRemoved = true
         if let ast = model[sec]?[ptype] {
             for rule in rules {
@@ -227,7 +248,7 @@ extension DefaultModel:Model {
             }
         }
     }
-    public  func removeFilteredPolicy(
+    public func removeFilteredPolicy(
         sec:String,
         ptype:String,
         fieldIndex:Int,

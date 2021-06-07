@@ -2,6 +2,7 @@
 import XCTest
 import Casbin
 import NIO
+public let TestsfilePath = #file.components(separatedBy: "EnforcerTests.swift")[0]
 
 final class EnforcerTests: XCTestCase {
     var elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -13,11 +14,8 @@ final class EnforcerTests: XCTestCase {
         } catch  {
             
         }
-       
     }
-    let filePath = { (s:String) -> String in
-        #file.components(separatedBy: "EnforcerTests.swift")[0] + s
-    }
+    
     func testKeyMatchModelInMemory() throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
@@ -26,7 +24,7 @@ final class EnforcerTests: XCTestCase {
         _ = m.addDef(sec: "m", key: "m", value: "r.sub == p.sub && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)")
         pool.start()
         let fileIo = NonBlockingFileIO(threadPool: pool)
-        let adapter = FileAdapter.init(filePath: filePath("examples/keymatch_policy.csv"), fileIo: fileIo, eventloop: elg.next())
+        let adapter = FileAdapter.init(filePath: TestsfilePath + "examples/keymatch_policy.csv", fileIo: fileIo, eventloop: elg.next())
         let e = try Enforcer.init(m: m, adapter: adapter, .shared(elg))
         
         XCTAssertEqual(true, try e.enforce("alice","/alice_data/resource1","GET").get())
@@ -60,9 +58,11 @@ final class EnforcerTests: XCTestCase {
         _ = m.addDef(sec: "m", key: "m", value: "r.sub == p.sub && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)")
         pool.start()
         let fileIo = NonBlockingFileIO(threadPool: pool)
-        let adapter = FileAdapter.init(filePath: filePath("examples/keymatch_policy.csv"), fileIo: fileIo, eventloop: elg.next())
+        let adapter = FileAdapter.init(filePath: TestsfilePath + "examples/keymatch_policy.csv", fileIo: fileIo, eventloop: elg.next())
         let e = try Enforcer.init(m: m, adapter: adapter, .shared(elg))
         
         XCTAssertEqual(true,try e.enforce("alice","/alice_data/resource2","POST").get())
     }
+    
+    
 }

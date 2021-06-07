@@ -15,7 +15,7 @@
 
 ///  * Assertion represents an expression in a section of the model.
 ///  * For example: r = sub, obj, act
-public class Assertion {
+public final class Assertion {
     public var key: String
     public var value:String
     public var tokens:[String]

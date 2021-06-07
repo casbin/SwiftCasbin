@@ -18,10 +18,10 @@ extension Enforcer {
     }
     public var watcher: Watcher? {
         get {
-            guard let watcher = self.core.storage.watcher else {
-                fatalError("watcher not configured. Configure with ef.watcher = xxx")
-            }
-            return watcher
+//            guard let watcher = self.core.storage.watcher else {
+//                fatalError("watcher not configured. Configure with ef.watcher = xxx")
+//            }
+            return self.core.storage.watcher
         }
         set {
             self.core.storage.watcher = newValue

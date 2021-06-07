@@ -140,7 +140,7 @@ public extension CoreApi {
         addNamedGroupingPolicies(ptype: "g", paramss: paramss)
     }
     func removeGroupingPolicy(params:[String]) -> EventLoopFuture<Bool> {
-        removeNamedPolicy(ptype: "g", params: params)
+        removeNamedGroupingPolicy(ptype: "g", params: params)
     }
     func removeGroupingPolicies(paramss:[[String]]) -> EventLoopFuture<Bool> {
         removeNamedGroupingPolicies(ptype: "g", paramss: paramss)

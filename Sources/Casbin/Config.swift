@@ -50,6 +50,7 @@ public struct Config {
         }
     }
     private mutating func parse(_ s: String) -> CasbinResult<Void> {
+        let s = s.replacingOccurrences(of: "\r", with: "")
         let lines = s.split(separator: "\n")
         let linesCount = lines.count
         var section = ""
