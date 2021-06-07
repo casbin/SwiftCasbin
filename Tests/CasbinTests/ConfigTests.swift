@@ -6,6 +6,14 @@ import NIO
 final class ConfigTests: XCTestCase {
     var elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     var pool = NIOThreadPool(numberOfThreads: 1)
+    deinit {
+        do {
+            try pool.syncShutdownGracefully()
+            try elg.syncShutdownGracefully()
+        } catch  {
+            
+        }
+    }
     func testGet() throws {
         let filePath = #file.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
         pool.start()

@@ -27,7 +27,7 @@ public final class DefaultRoleManager {
     /// - Parameters:
     ///   - allDomains:
     ///   - maxHierarchyLevel: the maximized allowed RBAC hierarchy level.
-    public init(maxHierarchyLevel: Int) {
+    public init(maxHierarchyLevel: Int,cache:Cache? = nil) {
         self.maxHierarchyLevel = maxHierarchyLevel
     }
     

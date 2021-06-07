@@ -15,7 +15,7 @@
 import NIO
 public final class DefaultModel {
     var model: [String:[String:Assertion]] = [:]
-    public func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
+    public static func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
         Config.from(file: file,fileIo: fileIo,on: eventloop).flatMap {
             let model = DefaultModel.init()
             for sec in ["r","p","e","m","g"] {
@@ -27,11 +27,32 @@ public final class DefaultModel {
             return eventloop.makeSucceededFuture(model)
         }
     }
+    public static func from(text:String,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
+        Config.from(text: text, on: eventloop).flatMap {
+            let model = DefaultModel.init()
+            for sec in ["r","p","e","m","g"] {
+                let r =  model.loadSection(cfg: $0, sec: sec)
+                if case .failure(let e) = r {
+                    return eventloop.makeFailedFuture(e)
+                }
+            }
+            return eventloop.makeSucceededFuture(model)
+        }
+        
+    }
     public init() {
         
     }
     func loadSection(cfg:Config,sec:String) -> CasbinResult<Void> {
-        .success(())
+        var i = 1
+        while true {
+            if case let .success(b) = loadAssertion(cfg: cfg, sec: sec, key: "\(sec)\(getKeySuffix(i: i))"),b == false {
+                break
+            } else {
+                i += 1
+            }
+        }
+        return .success(())
     }
     
     func loadAssertion(cfg:Config,sec:String,key:String) -> CasbinResult<Bool> {
@@ -52,11 +73,11 @@ public final class DefaultModel {
             }
         }
         return secName.map { s in
-            let val = cfg.get(key: "\(s):\(key)")
+            let val = cfg.get(key: "\(s)::\(key)")
             if val.isEmpty {
                 return false
             }
-            return addDef(sec: s, key: key, value: val)
+            return addDef(sec: sec, key: key, value: val)
         }
     }
     func getKeySuffix(i:Int) -> String {

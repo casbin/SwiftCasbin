@@ -17,6 +17,11 @@ import Expression
 import NIO
 import NIOTransportServices
 public typealias EventCallback = (EventData,Enforcer) -> Void
+
+public enum EventLoopGroupProvider {
+    case shared(EventLoopGroup)
+    case createNew
+}
 public final class Enforcer {
     public var storage: Storage
     public var logger: Logger
@@ -57,14 +62,18 @@ public final class Enforcer {
         self.fm.functions.forEach { (key: String, value: @escaping ExpressionFunction) in
             symbols[.function(key, arity: .atLeast(2))] = value
         }
+        symbols[.infix("in")] = { args in
+            guard let left = args[0] as? String,
+                  let right = args[1] as? Array<String> else {
+                throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
+            }
+            return right.contains(left)
+        }
         try registerGFunctions().get()
         self.on(e: .PolicyChange, f: notifyLoggerAndWatcher)
         try loadPolicy().wait()
     }
-    public enum EventLoopGroupProvider {
-        case shared(EventLoopGroup)
-        case createNew
-    }
+    
 }
 
 extension Enforcer: EventEmitter {
@@ -109,6 +118,7 @@ extension Enforcer {
         default:
             break
         }
+   
         if let asts = self.model.getModel()[key] {
             if let ast = asts[key] {
                 return .success(ast)
@@ -125,9 +135,6 @@ extension Enforcer {
                 let count = ast.value.filter { $0  == "_" }.count
                 if count == 2 {
                     self.symbols[.function(key, arity: 2)] = { args in
-                        guard args.count < 2 else {
-                            throw CasbinError.OtherErrorMessage("expression args count < 2")
-                        }
                         guard let name1 = args[0] as? String,let name2 = args[1] as? String else {
                             throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
                         }
@@ -135,9 +142,6 @@ extension Enforcer {
                     }
                 } else if count == 3 {
                     self.symbols[.function(key, arity: 3)] = { args in
-                        guard args.count < 3 else {
-                            throw CasbinError.OtherErrorMessage("expression args count < 3")
-                        }
                         guard let name1 = args[0] as? String,
                               let name2 = args[1] as? String,
                               let domain = args[2] as? String else {
@@ -177,7 +181,7 @@ extension Enforcer {
                 pAst.tokens.forEach {
                     scope[$0] = ""
                 }
-                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value),constants: scope, symbols: symbols).evaluate()
+                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value),options: .boolSymbols,constants: scope, symbols: symbols).evaluate()
                 let eft = evalResult ? Effect.Allow : .Indeterminate
                 _ = eftStream.pushEffect(eft: eft)
                 return .success((eftStream.next(), nil))
@@ -189,7 +193,7 @@ extension Enforcer {
                 pAst.tokens.enumerated().forEach { (index,token) in
                     scope[token] = pvals[index]
                 }
-                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value), constants: scope, symbols: symbols).evaluate()
+                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value),options: .boolSymbols, constants: scope, symbols: symbols).evaluate()
                 let eft:Effect = { () -> Effect in
                     if let i = pAst.tokens.firstIndex(of: "p_eft") {
                         if evalResult {
