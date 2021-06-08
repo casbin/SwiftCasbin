@@ -34,8 +34,7 @@ let package = Package(
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOTransportServices", package: "swift-nio-transport-services")
                 
-            ],
-            swiftSettings: [SwiftSetting.define("")]
+            ]
             
         ),
            
