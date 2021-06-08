@@ -17,7 +17,6 @@ import Expression
 import NIO
 import Foundation
 import NIOTransportServices
-import SwiftyJSON
 public typealias EventCallback = (EventData,Enforcer) -> Void
 
 public enum EventLoopGroupProvider {
