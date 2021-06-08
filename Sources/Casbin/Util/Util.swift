@@ -52,7 +52,7 @@ public struct Util {
     public static func escapeEval(_ m:String) -> String {
         let re = Regex.init(#"\beval\(([^)]*)\)"#)
         var _m = m
-        _m.replaceAll(matching: re, with: "eval(escape_assertion({$1}))")
+        _m.replaceAll(matching: re, with: "eval($1)")
         return _m
     }
     
@@ -81,6 +81,9 @@ public struct Util {
             return res
         }
     }
+    
+ 
+    
     
 }
 

@@ -3,7 +3,7 @@ import XCTest
 import Casbin
 
 final class UtilsTests: XCTestCase {
-    func testWscapeAssertion() {
+    func testEscapeAssertion() {
         let s = "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act"
         let exp = "g(r_sub, p_sub) && r_obj == p_obj && r_act == p_act"
         XCTAssertEqual(exp, Util.escapeAssertion(s))
@@ -36,4 +36,6 @@ final class UtilsTests: XCTestCase {
         XCTAssertEqual(Util.parseCsvLine(line: "alice, \"domain1, domain2\", \"data1, data2\", action1"), ["alice","domain1, domain2","data1, data2","action1"])
     }
     
+   
+ 
 }

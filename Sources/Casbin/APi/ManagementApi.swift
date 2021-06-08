@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import NIO
-extension CoreApi {
+public extension CoreApi {
     //MARK:ManagementApi
     func addNamedPolicy(ptype:String,params:[String]) -> EventLoopFuture<Bool> {
         addPolicyInternal(sec: "p", ptype: ptype, rule: params)

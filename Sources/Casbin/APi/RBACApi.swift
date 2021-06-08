@@ -14,7 +14,7 @@
 
 import NIO
 
-extension CoreApi {
+public extension CoreApi {
     func addPermission(for user:String,permission:[String]) -> EventLoopFuture<Bool> {
         var perm = permission
         perm.insert(user, at: 0)
