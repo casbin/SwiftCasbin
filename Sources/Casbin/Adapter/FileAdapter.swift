@@ -60,56 +60,7 @@ public final class FileAdapter {
             return isFiltered
         }
     }
-    func loadPolicyLine(line:String,m:Model) {
-        if line.isEmpty || line.starts(with: "#") {
-            return
-        }
-        if let tokens = Util.parseCsvLine(line: line),!tokens.isEmpty {
-            let key = tokens[0]
-            if let sec = key.first {
-                if let item = m.getModel()[String(sec)] {
-                    if let ast = item[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
-                }
-            }
-        }
-    }
-    func loadFilteredPolicyLine(line:String,m:Model,f:Filter) -> Bool {
-        if line.isEmpty || line.starts(with: "#") {
-            return false
-        }
-        if let tokens = Util.parseCsvLine(line: line) {
-            let key = tokens[0]
-            var isFiltered = false
-            if let sec = key.first {
-                let sec = String(sec)
-                if sec == "p" {
-                    for (i,rule) in f.p.enumerated() {
-                        if !rule.isEmpty && rule != tokens[i + 1] {
-                            isFiltered = true
-                        }
-                    }
-                }
-                if sec == "g" {
-                    for (i,rule) in f.g.enumerated() {
-                        if !rule.isEmpty && rule != tokens[i + 1] {
-                            isFiltered = true
-                        }
-                    }
-                }
-                if !isFiltered {
-                    if let ast = m.getModel()[sec]?[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
-                }
-                
-            }
-            return isFiltered
-        }else {
-            return false
-        }
-    }
+    
     func savePolicyFile(text:String) -> EventLoopFuture<Void> {
         fileIo.openFile(path: filePath,
                         mode: .write,
@@ -126,11 +77,11 @@ public final class FileAdapter {
 
 extension FileAdapter: Adapter {
     public func loadPolicy(m: Model) -> EventLoopFuture<Void> {
-        loadPolicyFile(m: m, handler: loadPolicyLine(line:m:))
+        loadPolicyFile(m: m, handler:Util.loadPolicyLine(line:m:))
     }
 
     public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
-        loadFilteredPolicyFile(m: m, filter: f, handler: loadFilteredPolicyLine).map {
+        loadFilteredPolicyFile(m: m, filter: f, handler: Util.loadFilteredPolicyLine).map {
             self.isFiltered = $0
         }
     }
