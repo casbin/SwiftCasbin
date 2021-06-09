@@ -15,6 +15,7 @@
 import Logging
 import Expression
 import NIO
+import Foundation
 import NIOTransportServices
 public typealias EventCallback = (EventData,Enforcer) -> Void
 
@@ -62,6 +63,7 @@ public final class Enforcer {
         self.fm.functions.forEach { (key: String, value: @escaping ExpressionFunction) in
             symbols[.function(key, arity: .atLeast(2))] = value
         }
+        
         symbols[.infix("in")] = { args in
             guard let left = args[0] as? String,
                   let right = args[1] as? Array<String> else {
@@ -69,6 +71,7 @@ public final class Enforcer {
             }
             return right.contains(left)
         }
+        
         try registerGFunctions().get()
         self.on(e: .PolicyChange, f: notifyLoggerAndWatcher)
         try loadPolicy().wait()
@@ -156,6 +159,63 @@ extension Enforcer {
         }
         return .success(())
     }
+    private func makeExpression(scope:[String:Any],parsed:ParsedExpression) -> AnyExpression {
+       return .init(parsed, impureSymbols: { symbol  in
+             if case let .function(s, arity: _) = symbol,s == "eval" {
+                return { [self] args -> Any? in
+                    guard let ex = args[0] as? String else {
+                        throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
+                    }
+                    let expString = Util.escapeAssertion(ex)
+                    let exp = Expression.parse(expString)
+                    return try? makeExpression(scope: scope, parsed: exp).evaluate()
+                }
+            }
+            if case let .variable(s) = symbol,!(s.hasPrefix("\"") && s.hasSuffix("\"")) {
+                let sp = s.split(separator: ".").map { String($0)}
+                if sp.count > 1 {
+                    var objcet = scope[sp[0]]
+                    for i in 1..<sp.count {
+                        objcet = getMirrorValue(label: sp[i], value: objcet as Any)
+                    }
+                  
+                    return {_ in objcet as Any}
+                }
+                return {_ in scope[sp[0]] as Any}
+            }
+            if case .function = symbol, symbols.keys.contains(symbol) {
+                return symbols[symbol]
+            }
+            if case .infix(let s) = symbol,s == "in" {
+                return symbols[symbol]
+            }
+            return nil
+        })
+    }
+    private func getMirrorValue(label:String,value:Any) -> Any? {
+        let mirror = Mirror.init(reflecting: value)
+        let children = mirror.children
+        if children.isEmpty {
+            return value
+        }
+        
+        for child in children {
+            
+            if child.label == "some" {
+                let vMirror = Mirror.init(reflecting: child.value)
+                let vchildren = vMirror.children
+                if vchildren.isEmpty {
+                    return child.value
+                }
+                for vchild in vchildren {
+                    if vchild.label == label {
+                        return vchild.value
+                    }
+                }
+            }
+        }
+        return nil
+    }
     
     func privateEnforce(rvals:[Any]) -> Result<(Bool,[Int]?),Error> {
         if !self.enabled {
@@ -173,7 +233,10 @@ extension Enforcer {
             }
             rAst.tokens.enumerated().forEach { (index,token) in
                 scope[token] = rvals[index]
+                
             }
+         
+            let ex = Expression.parse(Util.escapeEval(mAst.value))
             let policies = pAst.policy
             let (policyLen) = (policies.count)
             var eftStream = eft.newStream(expr: eAst.value, cap: max(policyLen, 1))
@@ -181,7 +244,8 @@ extension Enforcer {
                 pAst.tokens.forEach {
                     scope[$0] = ""
                 }
-                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value),options: .boolSymbols,constants: scope, symbols: symbols).evaluate()
+                let eval = makeExpression(scope: scope, parsed: ex)
+                let evalResult:Bool = try eval.evaluate()
                 let eft = evalResult ? Effect.Allow : .Indeterminate
                 _ = eftStream.pushEffect(eft: eft)
                 return .success((eftStream.next(), nil))
@@ -193,7 +257,10 @@ extension Enforcer {
                 pAst.tokens.enumerated().forEach { (index,token) in
                     scope[token] = pvals[index]
                 }
-                let evalResult:Bool = try AnyExpression.init(Util.escapeEval(mAst.value),options: .boolSymbols, constants: scope, symbols: symbols).evaluate()
+                let eval = makeExpression(scope: scope, parsed: ex)
+                print(eval.description)
+                let evalResult:Bool = try eval.evaluate()
+
                 let eft:Effect = { () -> Effect in
                     if let i = pAst.tokens.firstIndex(of: "p_eft") {
                         if evalResult {

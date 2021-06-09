@@ -52,7 +52,7 @@ public struct Util {
     public static func escapeEval(_ m:String) -> String {
         let re = Regex.init(#"\beval\(([^)]*)\)"#)
         var _m = m
-        _m.replaceAll(matching: re, with: "eval(escape_assertion({$1}))")
+        _m.replaceAll(matching: re, with: "eval($1)")
         return _m
     }
     
@@ -81,6 +81,59 @@ public struct Util {
             return res
         }
     }
+    public static func loadPolicyLine(line:String,m:Model) {
+        if line.isEmpty || line.starts(with: "#") {
+            return
+        }
+        if let tokens = Util.parseCsvLine(line: line),!tokens.isEmpty {
+            let key = tokens[0]
+            if let sec = key.first {
+                if let item = m.getModel()[String(sec)] {
+                    if let ast = item[key] {
+                        ast.policy.append(Array(tokens[1...]))
+                    }
+                }
+            }
+        }
+    }
+   public static func loadFilteredPolicyLine(line:String,m:Model,f:Filter) -> Bool {
+        if line.isEmpty || line.starts(with: "#") {
+            return false
+        }
+        if let tokens = Util.parseCsvLine(line: line) {
+            let key = tokens[0]
+            var isFiltered = false
+            if let sec = key.first {
+                let sec = String(sec)
+                if sec == "p" {
+                    for (i,rule) in f.p.enumerated() {
+                        if !rule.isEmpty && rule != tokens[i + 1] {
+                            isFiltered = true
+                        }
+                    }
+                }
+                if sec == "g" {
+                    for (i,rule) in f.g.enumerated() {
+                        if !rule.isEmpty && rule != tokens[i + 1] {
+                            isFiltered = true
+                        }
+                    }
+                }
+                if !isFiltered {
+                    if let ast = m.getModel()[sec]?[key] {
+                        ast.policy.append(Array(tokens[1...]))
+                    }
+                }
+                
+            }
+            return isFiltered
+        }else {
+            return false
+        }
+    }
+    
+ 
+    
     
 }
 

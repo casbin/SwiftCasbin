@@ -32,9 +32,9 @@ public struct FunctionMap {
         fm.addFuntion(name: "regexMatch",
                       function: Util.toExpressionFunction(name: "regexMatch", function: Util.regexMatch))
         fm.addFuntion(name: "globMatch",
-                      function: Util.toExpressionFunction(name: "globMatch", function: Util.regexMatch))
+                      function: Util.toExpressionFunction(name: "globMatch", function: Util.globMatch))
         fm.addFuntion(name: "ipMatch",
-                      function: Util.toExpressionFunction(name: "ipMatch", function: Util.regexMatch))
+                      function: Util.toExpressionFunction(name: "ipMatch", function: Util.ipMatch))
         
         
         return fm

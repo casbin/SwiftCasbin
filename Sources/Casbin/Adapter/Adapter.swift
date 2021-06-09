@@ -15,6 +15,11 @@
 import NIO
 
 public struct Filter {
+    public init(p: [String], g: [String]) {
+        self.p = p
+        self.g = g
+    }
+    
     public let p: [String]
     public let g: [String]
 }

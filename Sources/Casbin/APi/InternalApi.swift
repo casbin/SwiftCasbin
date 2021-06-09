@@ -87,7 +87,5 @@ extension CoreApi {
         }
         return eventLoopGroup.next().makeSucceededFuture(t)
     }
-    
-   
 }
 
