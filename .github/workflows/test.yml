@@ -1,18 +1,56 @@
 name: test
-on:
-- push
+on: [push,pull_request,release]
 jobs:
-  xenial:
+  build:
     container: 
       image: swift:5.4-xenial
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - run: swift test  --sanitize=thread
-  bionic:
+    - name: checkout
+      uses: actions/checkout@v1
+    - name: run build
+      run: swift build
+
+  test:
     container: 
       image: swift:5.4-bionic
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - run: swift test  --sanitize=thread
+    - name: checkout
+      uses: actions/checkout@v1
+    - name: run test
+      run: swift test  --sanitize=thread
+
+  run_test_on-swift-5-4:
+    container: 
+      image: swift:5.4-bionic
+    runs-on: ubuntu-latest
+    steps:
+    - name: setup swift
+      uses: fwal/setup-swift@v1
+      with:
+        swift-version: "5.4.0"
+    - name: checkout
+      uses: actions/checkout@v1
+    - name: run test
+      run: swift test  --sanitize=thread
+
+  release:
+      name: Release
+      runs-on: ubuntu-latest
+      needs: [test,build]
+      steps:
+        - uses: actions/checkout@v1
+
+        - run: sudo npm install semantic-release 
+        - name: release
+          if: github.repository == 'casbin/SwiftCasbin' && github.event_name == 'push'
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: npx semantic-release
+
+
+
+
+
+ 
