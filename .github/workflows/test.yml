@@ -1,18 +1,41 @@
-name: test
-on:
-- push
+name: main
+
+on: [push, pull_request]
+
 jobs:
-  xenial:
-    container: 
-      image: swift:5.4-xenial
+  test:
+    strategy:
+      matrix:
+        swiftver:
+          - swift:5.4
+        swiftos:
+          - xenial
+          - bionic
+          - focal
+    container: ${{ format('{0}-{1}', matrix.swiftver, matrix.swiftos) }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - run: swift test  --sanitize=thread
-  bionic:
-    container: 
-      image: swift:5.4-bionic
+      - name: Check out code
+        uses: actions/checkout@v2
+      
+      - name: Run tests with Thread Sanitizer
+        run: swift test --sanitize=thread
+  
+  release:
+    name: Release
     runs-on: ubuntu-latest
+    needs: [test]
     steps:
-    - uses: actions/checkout@v1
-    - run: swift test  --sanitize=thread
+      - name: Checkout
+        uses: actions/checkout@v2
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+
+      - name: Setup
+        run: npm install semantic-release
+      
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npx semantic-release
