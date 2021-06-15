@@ -42,7 +42,16 @@ final class RbacApiTests: XCTestCase {
         XCTAssertEqual(["data1_admin", "data2_admin"], e.getRoles(for: "alice", domain: nil).sorted())
         XCTAssertEqual([], e.getRoles(for: "bob", domain: nil).sorted())
         XCTAssertEqual([], e.getRoles(for: "data2_admin", domain: nil).sorted())
-        
-        
+        XCTAssertEqual(["read", "write"], e.getAllActions().sorted())
+        //XCTAssertEqual(["data1", "data2"], e.getAllObjects().sorted())
+        //XCTAssertEqual(["alice", "bob", "data2_admin"], e.getAllSubjects().sorted())
+        //XCTAssertEqual(["data1_admin", "data2_admin"], e.getAllRoles().sorted())
+    }
+    func testCoreApi_for_RoleApi_with_domain() throws {
+        let e = try makeEnforer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+        XCTAssertEqual(["read", "write"], e.getAllActions().sorted())
+        //XCTAssertEqual(["data1", "data2"], e.getAllObjects())
+        //XCTAssertEqual(["admin",], e.getAllSubjects())
+        //XCTAssertEqual(["admin", ], e.getAllRoles())
     }
 }

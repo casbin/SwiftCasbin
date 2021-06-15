@@ -48,7 +48,7 @@ public final class DefaultRoleManager {
                 }
             }
             if added {
-                if var cache = self.cache {
+                if let cache = self.cache {
                     cache.clear()
                 }
             }
@@ -105,7 +105,7 @@ extension DefaultRoleManager : RoleManager {
     
     public func clear() -> Void {
         allDomains = [:]
-        if var cache = self.cache {
+        if let cache = self.cache {
             cache.clear()
         }
     }
@@ -117,7 +117,7 @@ extension DefaultRoleManager : RoleManager {
         let role1 = createRole(name: name1, domain: domain)
         let role2 = createRole(name: name2, domain: domain)
         if !role1.addRole(role: role2) {
-            if var cache = cache {
+            if let cache = cache {
                 cache.clear()
             }
         }
@@ -131,7 +131,7 @@ extension DefaultRoleManager : RoleManager {
         let role1 = createRole(name: name1, domain: domain)
         let role2 = createRole(name: name2, domain: domain)
         role1.deleteRole(role: role2)
-        if var cache = self.cache  {
+        if let cache = self.cache  {
             cache.clear()
         }
         return .success(())
@@ -166,7 +166,7 @@ extension DefaultRoleManager : RoleManager {
                     .hasRole(name: name2, hierarchyLevel: maxHierarchyLevel)
             }
         }
-        if var cache = self.cache {
+        if let cache = self.cache {
             cache.set(key: cacheKey, value: res)
         }
         return res

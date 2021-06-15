@@ -68,3 +68,7 @@ func notifyLoggerAndWatcher<T:CoreApi>(eventData:EventData,e: T) {
         w.update(eventData: eventData)
     }
 }
+func clearCache<T:CoreApi>(eventData:EventData,e: T) {
+    e.logger.printMgmtLog(e: eventData)
+    e.getCache()?.clear()
+}

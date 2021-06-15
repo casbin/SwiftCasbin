@@ -282,5 +282,4 @@ final class EnforcerTests: XCTestCase {
         XCTAssertEqual(true, try e.enforce("bob",Post.init(author: "bob"),"write").get())
         
     }
-    
 }

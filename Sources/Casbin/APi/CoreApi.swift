@@ -58,6 +58,8 @@ public protocol CoreApi:EventEmitter where K == Event {
     
     func hasAutoBuildRoleLinksEnabled() -> Bool
     
+    func getCache() -> Cache?
+    func setCapacity(_ c: Int)
 }
 
 
