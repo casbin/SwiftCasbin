@@ -116,3 +116,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+# Ignore the Package.resolved
+
+Package.resolved

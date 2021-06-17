@@ -106,13 +106,13 @@ public extension CoreApi {
         model.hasPolicy(sec: "g", ptype: ptype, rule: params)
     }
     func getAllNamedSubjects(ptype:String) -> [String] {
-        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: 0)
+        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: model.getModel()["p"]?["p"]?.tokens.firstIndex(of: "p_sub") ?? 0)
     }
     func getAllNamedObjects(ptype:String) -> [String] {
-        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: 1)
+        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: model.getModel()["p"]?["p"]?.tokens.firstIndex(of: "p_obj") ?? 1)
     }
     func getAllNamedActions(ptype:String) -> [String] {
-        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: 2)
+        model.getValuesForFieldInPolicy(sec: "p", ptype: ptype, fieldIndex: model.getModel()["p"]?["p"]?.tokens.firstIndex(of: "p_act") ?? 2)
     }
     func getAllNamedRoles(ptype:String) -> [String] {
         model.getValuesForFieldInPolicy(sec: "g", ptype: ptype, fieldIndex: 1)

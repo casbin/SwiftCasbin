@@ -204,13 +204,15 @@ extension DefaultModel:Model {
     public func hasPolicy(sec:String,ptype:String,rule:[String]) -> Bool {
         getPolicy(sec: sec, ptype: ptype).contains(rule)
     }
-    public func getValuesForFieldInPolicy(sec:String,ptype:String,fieldIndex:Int) -> [String] {
-        getPolicy(sec: sec, ptype: ptype).reduce([]) { acc, x in
-            var acc = acc
-            acc.append(x[fieldIndex])
-            return acc
-        }
-    }
+    public func getValuesForFieldInPolicy(sec:String,ptype:String,fieldIndex:Int) -> [String]  {
+          let policy = getPolicy(sec: sec, ptype: ptype).reduce(Set<String>()) { acc, x in
+          var acc = acc
+          acc.insert(x[fieldIndex])
+          return acc
+      }
+      return Array(policy)
+  }
+
     public func removePolicy(sec:String,ptype:String,rule: [String]) -> Bool {
        if let ast = model[sec]?[ptype] {
         ast.policy.removeAll {
