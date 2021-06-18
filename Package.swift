@@ -40,6 +40,8 @@ let package = Package(
            
         .testTarget(
             name: "CasbinTests",
-            dependencies: ["Casbin"]),
+            dependencies: ["Casbin"],
+            resources: [.copy("examples")]
+        ),
     ]
 )

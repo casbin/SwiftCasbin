@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import NIOConcurrencyHelpers
 extension Enforcer {
     internal var core: Core {
         .init(ef: self)
@@ -42,6 +43,14 @@ extension Enforcer {
         set {self.core.storage.eft = newValue}
     }
     
+    public var locks: Locks {
+        self.core.storage.locks
+    }
+
+    public var sync: Lock {
+        self.locks.main
+    }
+    
     public struct Core {
         final class Storage {
            
@@ -49,12 +58,13 @@ extension Enforcer {
             var watcher:Watcher?
             var rm: RoleManager
             var fm: FunctionMap
-            
+            var locks: Locks
             init() {
                 self.eft = DefaultEffector.init()
                 self.rm = DefaultRoleManager.init(maxHierarchyLevel: 10)
                 self.fm = FunctionMap.default()  
                 self.watcher = nil
+                self.locks = .init()
             }
             
         }
@@ -74,4 +84,31 @@ extension Enforcer {
             self.ef.storage[Key.self] = .init()
         }
     }
+    
+    public final class Locks {
+        public let main: Lock
+        var storage: [ObjectIdentifier: Lock]
+
+        init() {
+            self.main = .init()
+            self.storage = [:]
+        }
+
+        public func lock<Key>(for key: Key.Type) -> Lock
+            where Key: LockKey
+        {
+            self.main.lock()
+            defer { self.main.unlock() }
+            if let existing = self.storage[ObjectIdentifier(Key.self)] {
+                return existing
+            } else {
+                let new = Lock()
+                self.storage[ObjectIdentifier(Key.self)] = new
+                return new
+            }
+        }
+    }
 }
+
+
+public protocol LockKey { }
