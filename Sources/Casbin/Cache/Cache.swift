@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public protocol Cache {
+public protocol Cache:AnyObject {
     
     func setCapacity(_ c: Int)
     
     func get<K,V>(key:K,as type: V.Type) -> V? where K:Hashable&Equatable
     
-    mutating func set<K,V>(key:K,value:V) where K:Hashable&Equatable
+    func set<K,V>(key:K,value:V) where K:Hashable&Equatable
     
     func has<K>(k:K) -> Bool where K:Hashable&Equatable
     
-    mutating func clear()
+    func clear()
     
 }

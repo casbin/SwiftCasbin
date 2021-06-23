@@ -51,6 +51,7 @@ public enum EventData: CustomStringConvertible {
     case ClearPolicy
     case ClearCache
 }
+
 public protocol EventKey:Hashable & Equatable {}
 
 public protocol EventEmitter {
@@ -67,4 +68,9 @@ func notifyLoggerAndWatcher<T:CoreApi>(eventData:EventData,e: T) {
     if let w = e.watcher {
         w.update(eventData: eventData)
     }
+}
+
+func clearCache<T:CoreApi>(eventData:EventData,e: T) {
+    e.logger.printMgmtLog(e: eventData)
+    e.getCache()?.clear()
 }

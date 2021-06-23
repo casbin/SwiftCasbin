@@ -73,6 +73,9 @@ public final class Enforcer {
         }
         
         try registerGFunctions().get()
+        if self.cache != nil {
+            self.on(e: Event.ClearCache, f: clearCache)
+        }
         self.on(e: .PolicyChange, f: notifyLoggerAndWatcher)
         try loadPolicy().wait()
     }
@@ -258,7 +261,6 @@ extension Enforcer {
                     scope[token] = pvals[index]
                 }
                 let eval = makeExpression(scope: scope, parsed: ex)
-                print(eval.description)
                 let evalResult:Bool = try eval.evaluate()
 
                 let eft:Effect = { () -> Effect in
@@ -296,14 +298,33 @@ extension Enforcer {
     }
     public func enforce(rvals:[Any]) -> Result<Bool,Error> {
         do {
+            var _authorized:Bool
+            var _cached: Bool = false
+            var _indices:[Int]?
+            
+            if self.cache != nil {
+                var hasher = Hasher.init()
+                rvals.forEach {
+                    if let hash = $0 as? AnyHashable {
+                        hasher.combine(hash)
+                    }
+                }
+                let cacheKey = hasher.finalize()
+                let (authorized,cached,indices) = try cachedPrivateEnforce(rvals: rvals, cacheKey: cacheKey).get()
+                _authorized = authorized
+                _cached = cached
+                _indices = indices
+            }
             let (authorized,indices) = try privateEnforce(rvals: rvals).get()
+            _authorized = authorized
+            _indices = indices
             if logEnabled {
                 self.logger.printEnforceLog(
                     rvals: rvals.compactMap({ $0 as? String }),
-                    cached: false,
-                    authorized: authorized,
+                    cached: _cached,
+                    authorized: _authorized,
                     level: logger.logLevel)
-                if let indices = indices {
+                if let indices = _indices {
                     if case let .success(ast) = self.getAst(key: "p") {
                        let  allRules = ast.policy
                         let rules = indices.compactMap {
@@ -346,6 +367,14 @@ extension Enforcer {
 }
 
 extension Enforcer: CoreApi {
+    public func getCache() -> Cache? {
+        self.cache
+    }
+    
+    public func setCapacity(_ c: Int) {
+        self.cache?.setCapacity(c)
+    }
+    
     public var enableLog: Bool {
         get {
             self.logEnabled
@@ -462,8 +491,6 @@ extension Enforcer: CoreApi {
     public func hasAutoBuildRoleLinksEnabled() -> Bool {
         autoBuildRoleLinks
     }
-    
-    
 }
 
 

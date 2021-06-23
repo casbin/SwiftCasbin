@@ -14,12 +14,16 @@
 
 import NIOConcurrencyHelpers
 
-public struct DefaultCache:Cache {
+public final class DefaultCache:Cache {
+    init(lru: LruCache<Int, Bool>) {
+        self.lru = lru
+    }
+    
     public func get<K, V>(key: K, as type: V.Type) -> V? where K : Hashable {
         (lru.getValue(forKey:key as! Int) as! V)
     }
     
-    public mutating func set<K, V>(key: K, value: V) where K : Hashable {
+    public func set<K, V>(key: K, value: V) where K : Hashable {
         lru.setValue(value: value as! Bool, forKey: key as! Int)
     }
     
@@ -27,7 +31,7 @@ public struct DefaultCache:Cache {
         get(key: k, as: Bool.self) != nil
     }
     
-    public mutating func clear() {
+    public func clear() {
         lru.clear()
     }
     
