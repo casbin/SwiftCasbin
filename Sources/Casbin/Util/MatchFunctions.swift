@@ -102,8 +102,43 @@ extension Util {
             return ipAddr1 == ipAddr2
         }
     }
-    //TODO:GlobMatch
+
     public static func globMatch(_ key1:String,_ key2: String) -> Bool {
-        fatalError("")
+        let key1Split = key1.split(separator: "/")
+        let key2Split = key2.split(separator: "/")
+        if key1Split.count != key2Split.count 
+        {
+            return false
+        }
+        var key1str: [String] = []
+        for item in key1Split 
+        {
+            key1str.append("\(item)")
+        }
+        var key2str: [String] = []
+        for item in key2Split
+        {
+            key2str.append("\(item)")
+        }
+        for index in 0...(key1str.count-1) 
+        {
+            let str1 = key1str[index]
+            for j in 0...(key1str[index].count-1) 
+            {
+                let str2 = key2str[index]
+                let str1now = str1[str1.index(str1.startIndex, offsetBy :j)]
+                let str2now = str2[str2.index(str2.startIndex, offsetBy :j)]
+                if str2now == "*"
+                {
+                    break;
+                }
+                if str1now != str2now
+                {
+                    return false
+                }
+            }
+        }
+        return true
+
     }
 }

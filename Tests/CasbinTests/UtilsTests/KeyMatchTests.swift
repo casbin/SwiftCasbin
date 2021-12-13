@@ -33,6 +33,16 @@ final class KeyMatchTests: XCTestCase {
         XCTAssertFalse(Util.ipMatch("::1", "127.0.0.2"))
         XCTAssertFalse(Util.ipMatch("192.168.2.189", "192.168.1.134/26"))
     }
+    func testglobMatch() {
+        XCTAssertTrue(Util.globMatch("/foo", "/foo"))
+        XCTAssertTrue(Util.globMatch("/foo", "/foo*"))
+        XCTAssertFalse(Util.globMatch("/foo", "/foo/*"))
+        XCTAssertFalse(Util.globMatch("/foo/bar", "/foo"))
+        XCTAssertFalse(Util.globMatch("/foo/bar", "/foo*"))
+        XCTAssertTrue(Util.globMatch("/foo/bar", "/foo/*"))
+        XCTAssertFalse(Util.globMatch("/foobar", "*/foo"))
+        XCTAssertFalse(Util.globMatch("/prefix/foobar", "*/foo/*"))
+    }
 }
 
 
