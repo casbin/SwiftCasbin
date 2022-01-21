@@ -102,8 +102,64 @@ extension Util {
             return ipAddr1 == ipAddr2
         }
     }
-    //TODO:GlobMatch
+    // GlobMatch determines whether key1 matches the pattern of key2 using glob pattern
     public static func globMatch(_ key1:String,_ key2: String) -> Bool {
-        fatalError("")
+        let key1Split = key1.split(separator: "/")
+        var key2Split = key2.split(separator: "/")
+        if key2Split.count > 0 && key2Split[0] == "*" {
+            key2Split.removeFirst()
+        }
+        if key1Split.count != key2Split.count {
+            return false
+        } else {
+            for i in 0..<key1Split.count {
+                if !glob(s: String(key1Split[i]), p: String(key2Split[i])) {
+                    return false
+                }
+            }
+            return true
+        }
+    }
+    private static func glob(s: String, p: String) -> Bool {
+        var s = s
+        var p = p
+        while s.count > 0 && p.count > 0 && p[p.index(p.endIndex, offsetBy: -1)] != "*" {
+            if s[s.index(s.endIndex, offsetBy: -1)] == p[p.index(p.endIndex, offsetBy: -1)] {
+                s = String(s[s.startIndex..<s.index(s.endIndex, offsetBy: -1)])
+                p = String(p[p.startIndex..<p.index(p.endIndex, offsetBy: -1)])
+            } else {
+                return false
+            }
+        }
+        if p.count == 0 {
+            return s.count == 0
+        }
+        var sIndex = 0
+        var pIndex = 0
+        var sRecord = -1
+        var pRecord = -1
+        while sIndex < s.count && pRecord < p.count {
+            if p[p.index(p.startIndex, offsetBy: pIndex)] == "*" {
+                pIndex += 1
+                sRecord = sIndex
+                pRecord = pIndex
+            } else if s[s.index(s.startIndex, offsetBy: sIndex)] == p[p.index(p.startIndex, offsetBy: pIndex)] {
+                sIndex += 1
+                pIndex += 1
+            } else if sRecord != -1 && sRecord + 1 < s.count {
+                sRecord += 1
+                sIndex = sRecord
+                pIndex = pRecord
+            } else {
+                return false
+            }
+        }
+        while pIndex < p.count {
+            if p[p.index(p.startIndex, offsetBy: pIndex)] != "*" {
+                return false
+            }
+            pIndex += 1
+        }
+        return true
     }
 }
