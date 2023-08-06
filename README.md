@@ -124,7 +124,7 @@ What Casbin does NOT do:
 
 ## Documentation
 
-https://casbin.org/docs/en/overview
+https://casbin.org/docs/overview
 
 ## Online editor
 
@@ -132,7 +132,7 @@ You can also use the online editor (http://casbin.org/editor/) to write your Cas
 
 ## Tutorials
 
-https://casbin.org/docs/en/tutorials
+https://casbin.org/docs/tutorials
 
 ## Get started
 
@@ -174,15 +174,15 @@ We also provide a web-based UI for model management and policy management:
 
 ## Policy persistence
 
-https://casbin.org/docs/en/adapters
+https://casbin.org/docs/adapters
 
 ## Role manager
 
-https://casbin.org/docs/en/role-managers
+https://casbin.org/docs/role-managers
 
 ## Benchmarks
 
-https://casbin.org/docs/en/benchmark
+https://casbin.org/docs/benchmark
 
 ## Examples
 
@@ -202,11 +202,11 @@ Priority | [priority_model.conf](https://github.com/casbin/casbin/blob/master/ex
 
 ## Middlewares
 
-Authz middlewares for web frameworks: https://casbin.org/docs/en/middlewares
+Authz middlewares for web frameworks: https://casbin.org/docs/middlewares
 
 ## Our adopters
 
-https://casbin.org/docs/en/adopters
+https://casbin.org/docs/adopters
 
 ## Contributors
 
@@ -227,13 +227,6 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 <a href="https://opencollective.com/casbin/sponsor/0/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/0/avatar.svg"></a>
 <a href="https://opencollective.com/casbin/sponsor/1/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/1/avatar.svg"></a>
 <a href="https://opencollective.com/casbin/sponsor/2/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/3/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/4/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/5/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/6/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/7/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/8/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/casbin/sponsor/9/website" target="_blank"><img src="https://opencollective.com/casbin/sponsor/9/avatar.svg"></a>
 
 ## License
 
