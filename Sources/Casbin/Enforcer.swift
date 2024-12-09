@@ -292,7 +292,7 @@ extension Enforcer {
             return .success((eftStream.next(), eftStream.explain()))
             
         } catch  {
-            return .failure(error )
+            return .failure(error)
         }
         
     }
@@ -404,7 +404,7 @@ extension Enforcer: CoreApi {
             do {
                 try self.buildRoleLinks().get()
             } catch  {
-                return .failure(error as! CasbinError)
+                return .failure(error)
             }
         }
         return registerGFunctions()
