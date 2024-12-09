@@ -146,7 +146,7 @@ https://casbin.org/docs/tutorials
 
 ```swift
 import Casbin
-let e = try Enforer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+let e = try Enforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
 ```
 
 3. Besides the static policy file, Casbin also provides API for permission management at run-time. For example, You can get all the roles assigned to a user as below:
