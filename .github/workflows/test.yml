@@ -7,20 +7,19 @@ jobs:
     strategy:
       matrix:
         swiftver:
-          - swift:5.4
+          - swift:5.8
         swiftos:
-          - xenial
-          - bionic
           - focal
+          - jammy
     container: ${{ format('{0}-{1}', matrix.swiftver, matrix.swiftos) }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-      
+
       - name: Run tests with Thread Sanitizer
         run: swift test --sanitize=thread
-  
+
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -28,13 +27,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-          
+
       - name: Setup Node.js
         uses: actions/setup-node@v2
 
       - name: Setup
         run: npm install semantic-release
-      
+
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
