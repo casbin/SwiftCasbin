@@ -33,11 +33,8 @@ let package = Package(
                 .product(name: "Regex", package: "Regex"),
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOTransportServices", package: "swift-nio-transport-services")
-                
             ]
-            
         ),
-           
         .testTarget(
             name: "CasbinTests",
             dependencies: ["Casbin"],

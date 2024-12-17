@@ -11,16 +11,16 @@ final class ConfigTests: XCTestCase {
             try pool.syncShutdownGracefully()
             try elg.syncShutdownGracefully()
         } catch  {
-            
         }
     }
+
     func testGet() throws {
         let filePath = #file.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
         pool.start()
         let fileIo = NonBlockingFileIO(threadPool: pool)
         var config = try Config.from(file: filePath, fileIo: fileIo, on: elg.next())
             .wait()
-        
+
         XCTAssertEqual(true, config.getBool(key: "debug"))
         XCTAssertEqual(64, config.getInt(key: "math::math.i64"))
         XCTAssertEqual(64.1, config.getFloat(key: "math::math.f64"))
@@ -37,7 +37,7 @@ final class ConfigTests: XCTestCase {
         try pool.syncShutdownGracefully()
         try elg.syncShutdownGracefully()
     }
-    
+
     func testFromText() throws {
         let text = #"""
             # test config
@@ -61,7 +61,7 @@ final class ConfigTests: XCTestCase {
                             math.i64 = 64
                             math.f64 = 64.1
         """#
-        
+
         var config = try Config.from(text: text, on: elg.next()).wait()
         XCTAssertEqual(true, config.getBool(key: "debug"))
         XCTAssertEqual(64, config.getInt(key: "math::math.i64"))
@@ -71,7 +71,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual("new test key", config.get(key: "other::key1"))
         config.set(key: "other::key1", value: "test key")
         XCTAssertEqual("test key", config.get(key: "other::key1"))
-        
+
         try pool.syncShutdownGracefully()
         try elg.syncShutdownGracefully()
     }
