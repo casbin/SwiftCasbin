@@ -119,3 +119,6 @@ Temporary Items
 # Ignore the Package.resolved
 
 Package.resolved
+
+.idea/
+*.iml
