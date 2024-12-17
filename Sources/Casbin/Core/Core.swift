@@ -47,7 +47,7 @@ extension Enforcer {
         self.core.storage.locks
     }
 
-    public var sync: Lock {
+    public var sync: NIOLock {
         self.locks.main
     }
     
@@ -86,15 +86,15 @@ extension Enforcer {
     }
     
     public final class Locks {
-        public let main: Lock
-        var storage: [ObjectIdentifier: Lock]
+        public let main: NIOLock
+        var storage: [ObjectIdentifier: NIOLock]
 
         init() {
             self.main = .init()
             self.storage = [:]
         }
 
-        public func lock<Key>(for key: Key.Type) -> Lock
+        public func lock<Key>(for key: Key.Type) -> NIOLock
             where Key: LockKey
         {
             self.main.lock()
@@ -102,7 +102,7 @@ extension Enforcer {
             if let existing = self.storage[ObjectIdentifier(Key.self)] {
                 return existing
             } else {
-                let new = Lock()
+                let new = NIOLock()
                 self.storage[ObjectIdentifier(Key.self)] = new
                 return new
             }
