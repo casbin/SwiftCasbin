@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import Logging
-import Expression
+@preconcurrency import Expression
 import Foundation
 
 public typealias EventCallback = @Sendable (EventData, Enforcer) -> Void
@@ -70,7 +70,7 @@ extension Enforcer: EventEmitter {
     }
     
     public func off(e: Event) {
-        self.withSync { _ in
+        _ = self.withSync { _ in
             self.events.removeValue(forKey: e)
         }
     }
@@ -143,10 +143,8 @@ extension Enforcer {
                 return .failure(CasbinError.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
             }
         }
-        self.withSync { _ in
-            for (symbol, evaluator) in entries {
-                self.symbols[symbol] = evaluator
-            }
+        for (symbol, evaluator) in entries {
+            self.symbols[symbol] = evaluator
         }
         return .success(())
     }
@@ -373,10 +371,8 @@ extension Enforcer: CoreAPI {
     }
     
     public func addFunction(fname: String, f: @escaping ExpressionFunction) {
-        self.withSync { _ in
-            fm.addFuntion(name: fname, function: f)
-            symbols[.function(fname, arity: .atLeast(2))] = f
-        }
+        fm.addFuntion(name: fname, function: f)
+        symbols[.function(fname, arity: .atLeast(2))] = f
     }
     
     
@@ -389,8 +385,10 @@ extension Enforcer: CoreAPI {
         if autoBuildRoleLinks {
             do {
                 try self.buildRoleLinks().get()
+            } catch let error as CasbinError {
+                return .failure(error)
             } catch {
-                return .failure(error as? CasbinError ?? .OtherErrorMessage(error.localizedDescription))
+                return .failure(.OtherErrorMessage(error.localizedDescription))
             }
         }
         return registerGFunctions()

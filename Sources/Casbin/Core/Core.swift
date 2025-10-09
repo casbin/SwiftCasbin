@@ -44,12 +44,8 @@ extension Enforcer {
         set {self.core.storage.eft = newValue}
     }
     
-    public var locks: Locks {
-        self.core.storage.locks
-    }
-
     public func withSync<R>(_ body: @Sendable (inout sending ()) throws -> sending R) rethrows -> R {
-        try self.locks.main.withLock(body)
+        try self.core.storage.locks.main.withLock(body)
     }
     
     public struct Core {
@@ -86,7 +82,7 @@ extension Enforcer {
         }
     }
     
-    public final class Locks: @unchecked Sendable {
+    public struct Locks: ~Copyable {
         public let main: Mutex<()>
 
         init() {

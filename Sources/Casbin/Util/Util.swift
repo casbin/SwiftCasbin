@@ -15,8 +15,8 @@
 import Expression
 import Regex
 
-public typealias MatchFunction = (String,String) -> Bool
-public typealias ExpressionFunction = ([Any]) throws -> Bool
+public typealias MatchFunction = @Sendable (String,String) -> Bool
+public typealias ExpressionFunction = @Sendable ([Any]) throws -> Bool
 
 
 public struct Util {
@@ -136,5 +136,4 @@ public struct Util {
     
     
 }
-
 

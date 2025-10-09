@@ -14,7 +14,7 @@
 
 import Foundation
 
-public enum Event:EventKey {
+public enum Event: EventKey, Sendable {
     case PolicyChange
     case ClearCache
 }
