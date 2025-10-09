@@ -62,21 +62,25 @@ public final class Enforcer: @unchecked Sendable {
 extension Enforcer: EventEmitter {
 
     public func on(e: Event, f: @escaping @Sendable (EventData, Enforcer) -> Void) {
-        var fs = self.events.getOrInsert(key: e, with: [])
-        fs.append(f)
-        events.updateValue(fs, forKey: e)
+        self.withSync { _ in
+            var fs = self.events.getOrInsert(key: e, with: [])
+            fs.append(f)
+            self.events.updateValue(fs, forKey: e)
+        }
     }
     
     public func off(e: Event) {
-        events.removeValue(forKey: e)
+        self.withSync { _ in
+            self.events.removeValue(forKey: e)
+        }
     }
     
     public func emit(e: Event, d: EventData) {
-        if let cbs = events[e] {
-            cbs.forEach {
-                $0(d,self)
-            }
+        // Copy callbacks under lock, then invoke outside lock.
+        let callbacks: [EventCallback] = self.withSync { _ in
+            self.events[e] ?? []
         }
+        callbacks.forEach { $0(d, self) }
     }
     
 }
@@ -113,28 +117,35 @@ extension Enforcer {
         }
     }
     func registerGFunctions() -> CasbinResult<()> {
-        if let astMap = model.getModel()["g"] {
-            for (key, ast) in astMap {
-                let count = ast.value.filter { $0  == "_" }.count
-                if count == 2 {
-                    self.symbols[.function(key, arity: 2)] = { args in
-                        guard let name1 = args[0] as? String,let name2 = args[1] as? String else {
-                            throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
-                        }
-                        return self.roleManager.hasLink(name1: name1, name2: name2, domain: nil)
+        guard let astMap = model.getModel()["g"] else { return .success(()) }
+        var entries: [(AnyExpression.Symbol, AnyExpression.SymbolEvaluator)] = []
+        for (key, ast) in astMap {
+            let count = ast.value.filter { $0  == "_" }.count
+            if count == 2 {
+                let evaluator: AnyExpression.SymbolEvaluator = { args in
+                    guard let name1 = args[0] as? String, let name2 = args[1] as? String else {
+                        throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
                     }
-                } else if count == 3 {
-                    self.symbols[.function(key, arity: 3)] = { args in
-                        guard let name1 = args[0] as? String,
-                              let name2 = args[1] as? String,
-                              let domain = args[2] as? String else {
-                            throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
-                        }
-                        return self.roleManager.hasLink(name1: name1, name2: name2, domain: domain)
-                    }
-                } else {
-                    return .failure(CasbinError.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
+                    return self.roleManager.hasLink(name1: name1, name2: name2, domain: nil)
                 }
+                entries.append((.function(key, arity: 2), evaluator))
+            } else if count == 3 {
+                let evaluator: AnyExpression.SymbolEvaluator = { args in
+                    guard let name1 = args[0] as? String,
+                          let name2 = args[1] as? String,
+                          let domain = args[2] as? String else {
+                        throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
+                    }
+                    return self.roleManager.hasLink(name1: name1, name2: name2, domain: domain)
+                }
+                entries.append((.function(key, arity: 3), evaluator))
+            } else {
+                return .failure(CasbinError.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
+            }
+        }
+        self.withSync { _ in
+            for (symbol, evaluator) in entries {
+                self.symbols[symbol] = evaluator
             }
         }
         return .success(())
@@ -362,8 +373,10 @@ extension Enforcer: CoreAPI {
     }
     
     public func addFunction(fname: String, f: @escaping ExpressionFunction) {
-        fm.addFuntion(name: fname, function: f)
-        symbols[.function(fname, arity: .atLeast(2))] = f
+        self.withSync { _ in
+            fm.addFuntion(name: fname, function: f)
+            symbols[.function(fname, arity: .atLeast(2))] = f
+        }
     }
     
     
@@ -456,5 +469,3 @@ extension Enforcer: CoreAPI {
         autoBuildRoleLinks
     }
 }
-
-

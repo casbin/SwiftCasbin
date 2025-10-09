@@ -12,21 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Foundation
+import Synchronization
 
-/// A thread-safe synchronization primitive that protects access to a mutable value
-public final class Mutex<T>: @unchecked Sendable {
-    private var value: T
-    private let nsLock = NSLock()
-
-    public init(_ value: T) {
-        self.value = value
-    }
-
-    @discardableResult
-    public func withLock<R>(_ body: (inout T) throws -> R) rethrows -> R {
-        nsLock.lock()
-        defer { nsLock.unlock() }
-        return try body(&value)
-    }
-}
+/// Typealias to Swift 6's native Mutex
+public typealias Mutex = Synchronization.Mutex

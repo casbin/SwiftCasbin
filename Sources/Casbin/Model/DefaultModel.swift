@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public final class DefaultModel: @unchecked Sendable {
+public final class DefaultModel {
     var model: [String:[String:Assertion]] = [:]
     public static func from(file: String) async throws -> DefaultModel {
         let cfg = try await Config.from(file: file)

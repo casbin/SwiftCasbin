@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import Synchronization
 
 public typealias LoadPolicyFileHandler = @Sendable (String, Model) -> Void
 public typealias LoadFilteredPolicyFileHandler = @Sendable (String, Model, Filter) -> Bool

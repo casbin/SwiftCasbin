@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import Synchronization
 
 public final class DefaultCache: Cache, Sendable {
     init(lru: LruCache<Int, Bool>) {
@@ -41,7 +42,7 @@ public final class DefaultCache: Cache, Sendable {
     }
 }
 
-final class LruCache<Key:Hashable,Value>: @unchecked Sendable {
+final class LruCache<Key:Hashable & Sendable,Value: Sendable>: @unchecked Sendable {
     private class ListNode {
         var key: Key?
         var value: Value?
@@ -77,7 +78,7 @@ final class LruCache<Key:Hashable,Value>: @unchecked Sendable {
         self.state = Mutex(State(head: head, tail: tail))
     }
     /// Remove Node in the Double Linked-list.
-    private func remove(node: ListNode, state: inout State) {
+    private nonisolated func remove(node: ListNode, state: inout State) {
         node.prevNode?.nextNode = node.nextNode
         node.nextNode?.prevNode = node.prevNode
         guard let key = node.key else { return }
@@ -89,7 +90,7 @@ final class LruCache<Key:Hashable,Value>: @unchecked Sendable {
     }
 
     /// insertion is always fullfilled on the Head side.
-    private func insertToHead(node: ListNode, state: inout State) {
+    private nonisolated func insertToHead(node: ListNode, state: inout State) {
         state.head.nextNode?.prevNode = node
         node.nextNode = state.head.nextNode
         node.prevNode = state.head
@@ -105,9 +106,11 @@ final class LruCache<Key:Hashable,Value>: @unchecked Sendable {
                 return nil
             }
             guard let node = state.storage[key] else { return nil }
+            // Store the value before mutating state
+            let value = node.value
             remove(node: node, state: &state)
             insertToHead(node: node, state: &state)
-            return node.value
+            return value
         }
     }
 

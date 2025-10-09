@@ -6,10 +6,11 @@ import PackageDescription
 let package = Package(
     name: "Casbin",
     platforms: [
-        .macOS(.v13),
-        .iOS(.v16),
-        .tvOS(.v16),
-        .watchOS(.v9)
+        .macOS(.v15),
+        .iOS(.v18),
+        .tvOS(.v18),
+        .watchOS(.v11),
+        .visionOS(.v2)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.

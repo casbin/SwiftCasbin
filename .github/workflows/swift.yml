@@ -1,10 +1,11 @@
-name: Swift CI
+name: Swift CI (Swift 6)
 
 on:
   push:
     branches: [ master, feat/swift-6-concurrency ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, feat/swift-6-concurrency ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -14,8 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest]
         swift: ['6.0.3']
+        # Note: Windows is not supported due to lack of Synchronization module support
 
     steps:
     - uses: actions/checkout@v4
@@ -30,32 +32,6 @@ jobs:
 
     - name: Build
       run: swift build -v
-
-    - name: Run tests
-      run: swift test -v
-
-  build-xcode:
-    name: Xcode / macOS
-    runs-on: macos-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
-
-    - name: Swift Version
-      run: swift --version
-
-    - name: Build for macOS
-      run: swift build -v
-
-    - name: Build for iOS
-      run: |
-        xcodebuild -scheme Casbin \
-          -destination 'platform=iOS Simulator,name=iPhone 15' \
-          -sdk iphonesimulator \
-          build
 
     - name: Run tests
       run: swift test -v

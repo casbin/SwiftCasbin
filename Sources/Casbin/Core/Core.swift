@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import Synchronization
 extension Enforcer {
     internal var core: Core {
         .init(ef: self)
@@ -47,8 +48,8 @@ extension Enforcer {
         self.core.storage.locks
     }
 
-    public var sync: Mutex<()> {
-        self.locks.main
+    public func withSync<R>(_ body: @Sendable (inout sending ()) throws -> sending R) rethrows -> R {
+        try self.locks.main.withLock(body)
     }
     
     public struct Core {
@@ -87,26 +88,9 @@ extension Enforcer {
     
     public final class Locks: @unchecked Sendable {
         public let main: Mutex<()>
-        var storage: [ObjectIdentifier: Mutex<()>]
-        private let storageLock = Mutex(())
 
         init() {
             self.main = Mutex(())
-            self.storage = [:]
-        }
-
-        public func lock<Key>(for key: Key.Type) -> Mutex<()>
-            where Key: LockKey
-        {
-            return storageLock.withLock { _ in
-                if let existing = self.storage[ObjectIdentifier(Key.self)] {
-                    return existing
-                } else {
-                    let new = Mutex(())
-                    self.storage[ObjectIdentifier(Key.self)] = new
-                    return new
-                }
-            }
         }
     }
 }

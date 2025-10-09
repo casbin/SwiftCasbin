@@ -29,7 +29,7 @@ extension Enforcer {
     public var caches: Caches {
         .init(enforcer: self)
     }
-    public struct Caches {
+    public struct Caches: Sendable {
         public let enforcer: Enforcer
         
         public struct Provider {
@@ -72,8 +72,7 @@ extension Enforcer {
             DefaultCache.init(lru: memoryStorage)
         }
         private var memoryStorage: LruCache<Int,Bool> {
-            let lock = self.enforcer.locks.lock(for: MemoryCacheKey.self)
-            return lock.withLock { _ in
+            return self.enforcer.withSync { _ in
                 if let existing = self.enforcer.storage.get(MemoryCacheKey.self) {
                     return existing
                 } else {
