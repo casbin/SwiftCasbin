@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
-        swift: ['6.0']
+        swift: ['6.0.3']
 
     steps:
     - uses: actions/checkout@v4
