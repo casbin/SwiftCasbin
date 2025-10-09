@@ -12,80 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
-
 extension CoreApi {
     //MARK: InternalApi
-    func addPolicyInternal(sec:String,ptype:String,rule:[String]) -> EventLoopFuture<Bool> {
-        adapter.addPolicy(sec: sec, ptype: ptype, rule: rule).flatMap { _bool in
-            if hasAutoSaveEnable() && !_bool {
-               return eventLoopGroup.next().makeSucceededFuture(false)
-            }
-          let ruleAdded =  model.addPolicy(sec: sec, ptype: ptype, rule: rule)
-            let eventData = EventData.AddPolicy(sec, ptype, rule)
-           return afterOperatePolicy(sec: sec, oped: ruleAdded, d: eventData, t: ruleAdded)
+    func addPolicyInternal(sec: String, ptype: String, rule: [String]) async throws -> Bool {
+        let _bool = try await adapter.addPolicy(sec: sec, ptype: ptype, rule: rule)
+        if hasAutoSaveEnable() && !_bool {
+            return false
         }
+        let ruleAdded = model.addPolicy(sec: sec, ptype: ptype, rule: rule)
+        let eventData = EventData.AddPolicy(sec, ptype, rule)
+        return try afterOperatePolicy(sec: sec, oped: ruleAdded, d: eventData, t: ruleAdded)
     }
-    
-    func addPoliciesInternal(sec:String,ptype:String,rules:[[String]]) -> EventLoopFuture<Bool> {
-        adapter.addPolicies(sec: sec, ptype: ptype, rules: rules).flatMap { _bool in
-            if hasAutoSaveEnable() && !_bool {
-               return eventLoopGroup.next().makeSucceededFuture(false)
-            }
-            let rulesAdded =  model.addPolicies(sec: sec, ptype: ptype, rules: rules)
-            let eventData = EventData.AddPolicies(sec, ptype, rules)
-            return afterOperatePolicy(sec: sec, oped: rulesAdded, d: eventData, t: rulesAdded)
+
+    func addPoliciesInternal(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
+        let _bool = try await adapter.addPolicies(sec: sec, ptype: ptype, rules: rules)
+        if hasAutoSaveEnable() && !_bool {
+            return false
         }
+        let rulesAdded = model.addPolicies(sec: sec, ptype: ptype, rules: rules)
+        let eventData = EventData.AddPolicies(sec, ptype, rules)
+        return try afterOperatePolicy(sec: sec, oped: rulesAdded, d: eventData, t: rulesAdded)
     }
-    func removePolicyInternal(sec:String,ptype:String,rule:[String]) -> EventLoopFuture<Bool> {
-        adapter.removePolicy(sec: sec, ptype: ptype, rule: rule).flatMap { _bool in
-            if hasAutoSaveEnable() && !_bool {
-               return eventLoopGroup.next().makeSucceededFuture(false)
-            }
-            let ruleRemoved =  model.removePolicy(sec: sec, ptype: ptype, rule: rule)
-            let eventData = EventData.RemovePolicy(sec, ptype, rule)
-            return afterOperatePolicy(sec: sec, oped: ruleRemoved, d: eventData, t: ruleRemoved)
+
+    func removePolicyInternal(sec: String, ptype: String, rule: [String]) async throws -> Bool {
+        let _bool = try await adapter.removePolicy(sec: sec, ptype: ptype, rule: rule)
+        if hasAutoSaveEnable() && !_bool {
+            return false
         }
+        let ruleRemoved = model.removePolicy(sec: sec, ptype: ptype, rule: rule)
+        let eventData = EventData.RemovePolicy(sec, ptype, rule)
+        return try afterOperatePolicy(sec: sec, oped: ruleRemoved, d: eventData, t: ruleRemoved)
     }
-    func removePoliciesInternal(sec:String,ptype:String,rules:[[String]]) -> EventLoopFuture<Bool> {
-        adapter.removePolicies(sec: sec, ptype: ptype, rules: rules).flatMap { _bool in
-            if hasAutoSaveEnable() && !_bool {
-               return eventLoopGroup.next().makeSucceededFuture(false)
-            }
-            let rulesRemoved =  model.removePolicies(sec: sec, ptype: ptype, rules: rules)
-            let eventData = EventData.RemovePolicies(sec, ptype, rules)
-            
-            return afterOperatePolicy(sec: sec, oped: rulesRemoved, d: eventData, t: rulesRemoved)
+
+    func removePoliciesInternal(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
+        let _bool = try await adapter.removePolicies(sec: sec, ptype: ptype, rules: rules)
+        if hasAutoSaveEnable() && !_bool {
+            return false
         }
+        let rulesRemoved = model.removePolicies(sec: sec, ptype: ptype, rules: rules)
+        let eventData = EventData.RemovePolicies(sec, ptype, rules)
+        return try afterOperatePolicy(sec: sec, oped: rulesRemoved, d: eventData, t: rulesRemoved)
     }
-    func removeFilteredPolicyInternal(sec:String,
-                                      ptype:String,
-                                      fieldIndex:Int,
-                                      fieldValues:[String])
-                                        -> EventLoopFuture<(Bool,[[String]])> {
-        adapter.removeFilteredPolicy(sec: sec, ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues).flatMap { _bool in
-            if hasAutoSaveEnable() && !_bool {
-               return eventLoopGroup.next().makeSucceededFuture((false,[]))
-            }
-            let (rolesRemoved,rules) = model.removeFilteredPolicy(sec: sec, ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
-            let eventData = EventData.RemoveFilteredPolicy(sec, ptype, rules)
-            return afterOperatePolicy(sec: sec, oped: rolesRemoved, d: eventData, t: (rolesRemoved,rules))
+
+    func removeFilteredPolicyInternal(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> (Bool,[[String]]) {
+        let _bool = try await adapter.removeFilteredPolicy(sec: sec, ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
+        if hasAutoSaveEnable() && !_bool {
+            return (false, [])
         }
+        let (rolesRemoved, rules) = model.removeFilteredPolicy(sec: sec, ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
+        let eventData = EventData.RemoveFilteredPolicy(sec, ptype, rules)
+        return try afterOperatePolicy(sec: sec, oped: rolesRemoved, d: eventData, t: (rolesRemoved, rules))
     }
-    
-    
-    private func afterOperatePolicy<T>(sec:String,oped:Bool,d:EventData,t:T) -> EventLoopFuture<T> {
+
+    private func afterOperatePolicy<T>(sec: String, oped: Bool, d: EventData, t: T) throws -> T {
         if oped {
             emit(e: Event.PolicyChange, d: d)
             emit(e: Event.ClearCache, d: EventData.ClearCache)
         }
         if sec != "g" || !hasAutoBuildRoleLinksEnabled() {
-            return eventLoopGroup.next().makeSucceededFuture(t)
+            return t
         }
-        if case let .failure(e) = buildIncrementalRoleLinks(eventData: d) {
-            return eventLoopGroup.next().makeFailedFuture(e)
-        }
-        return eventLoopGroup.next().makeSucceededFuture(t)
+        try buildIncrementalRoleLinks(eventData: d).get()
+        return t
     }
 }
 

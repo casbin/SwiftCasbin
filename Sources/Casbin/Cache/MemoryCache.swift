@@ -12,114 +12,120 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIOConcurrencyHelpers
+import Foundation
 
-public final class DefaultCache:Cache {
+public final class DefaultCache: Cache, Sendable {
     init(lru: LruCache<Int, Bool>) {
         self.lru = lru
     }
-    
+
     public func get<K, V>(key: K, as type: V.Type) -> V? where K : Hashable {
         (lru.getValue(forKey:key as! Int) as! V)
     }
-    
+
     public func set<K, V>(key: K, value: V) where K : Hashable {
         lru.setValue(value: value as! Bool, forKey: key as! Int)
     }
-    
+
     public func has<K>(k: K) -> Bool where K : Hashable {
         get(key: k, as: Bool.self) != nil
     }
-    
+
     public func clear() {
         lru.clear()
     }
-    
-    var lru: LruCache<Int,Bool>
+
+    let lru: LruCache<Int,Bool>
     public func setCapacity(_ c: Int) {
         lru.capacity = c
     }
 }
 
-final class LruCache<Key:Hashable,Value> {
+final class LruCache<Key:Hashable,Value>: @unchecked Sendable {
     private class ListNode {
-            var key: Key?
-            var value: Value?
-            var prevNode: ListNode?
-            var nextNode: ListNode?
-            
-            init(key: Key? = nil, value: Value? = nil) {
-                self.key = key
-                self.value = value
-            }
+        var key: Key?
+        var value: Value?
+        var prevNode: ListNode?
+        var nextNode: ListNode?
+
+        init(key: Key? = nil, value: Value? = nil) {
+            self.key = key
+            self.value = value
         }
-    private var storage:[Key:ListNode] = [:]
+    }
+
+    private struct State {
+        var storage: [Key:ListNode] = [:]
+        var head: ListNode
+        var tail: ListNode
+
+        init(head: ListNode, tail: ListNode) {
+            self.head = head
+            self.tail = tail
+        }
+    }
+
     var capacity = 0
-    private var lock:Lock
-    
-    /// head's nextNode is the actual first node in the Double Linked-list.
-    private var head = ListNode()
-    /// tail's prevNode is the actual last node in the Double Linked-list.
-    private var tail = ListNode()
-    
+    private let state: Mutex<State>
+
     init(capacity: Int) {
-            self.capacity = capacity
-            head.nextNode = tail
-            tail.prevNode = head
-            self.lock = .init()
+        self.capacity = capacity
+        let head = ListNode()
+        let tail = ListNode()
+        head.nextNode = tail
+        tail.prevNode = head
+        self.state = Mutex(State(head: head, tail: tail))
     }
     /// Remove Node in the Double Linked-list.
-        private func remove(node: ListNode) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            node.prevNode?.nextNode = node.nextNode
-            node.nextNode?.prevNode = node.prevNode
-            guard let key = node.key else { return }
-            storage.removeValue(forKey: key)
-     }
-    func clear() {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        self.storage = [:]
+    private func remove(node: ListNode, state: inout State) {
+        node.prevNode?.nextNode = node.nextNode
+        node.nextNode?.prevNode = node.prevNode
+        guard let key = node.key else { return }
+        state.storage.removeValue(forKey: key)
     }
+
+    func clear() {
+        state.withLock { $0.storage = [:] }
+    }
+
     /// insertion is always fullfilled on the Head side.
-        private func insertToHead(node: ListNode) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            head.nextNode?.prevNode = node
-            node.nextNode = head.nextNode
-            node.prevNode = head
-            head.nextNode = node
-            guard let key = node.key else { return }
-            storage.updateValue(node, forKey: key)
-        }
+    private func insertToHead(node: ListNode, state: inout State) {
+        state.head.nextNode?.prevNode = node
+        node.nextNode = state.head.nextNode
+        node.prevNode = state.head
+        state.head.nextNode = node
+        guard let key = node.key else { return }
+        state.storage.updateValue(node, forKey: key)
+    }
+
     /// When the cache hit happen, remove the node what you get and insert to Head side again.
-       func getValue(forKey key: Key) -> Value? {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-           if !storage.contains(where: { $0.key == key }) {
-               return nil
-           }
-           guard let node = storage[key] else { return nil }
-           remove(node: node)
-           insertToHead(node: node)
-           return node.value
-       }
+    func getValue(forKey key: Key) -> Value? {
+        state.withLock { state in
+            if !state.storage.contains(where: { $0.key == key }) {
+                return nil
+            }
+            guard let node = state.storage[key] else { return nil }
+            remove(node: node, state: &state)
+            insertToHead(node: node, state: &state)
+            return node.value
+        }
+    }
+
     /// Push your value and if there is same value, remove that automatically.
-        /// if not, remove Least Recently Used Node and push new node.
-        func setValue(value: Value, forKey key: Key) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
+    /// if not, remove Least Recently Used Node and push new node.
+    func setValue(value: Value, forKey key: Key) {
+        state.withLock { state in
             let newNode = ListNode(key: key, value: value)
-            if storage.contains(where: { $0.key == key }){
-                guard let oldNode = storage[key] else { return }
-                remove(node: oldNode)
+            if state.storage.contains(where: { $0.key == key }){
+                guard let oldNode = state.storage[key] else { return }
+                remove(node: oldNode, state: &state)
             } else {
-                if storage.count >= capacity {
-                    guard let tailNode = tail.prevNode else { return }
-                    remove(node: tailNode) // remove Least Recently Used Node
+                if state.storage.count >= capacity {
+                    guard let tailNode = state.tail.prevNode else { return }
+                    remove(node: tailNode, state: &state) // remove Least Recently Used Node
                 }
             }
-            insertToHead(node: newNode)
+            insertToHead(node: newNode, state: &state)
         }
+    }
 }

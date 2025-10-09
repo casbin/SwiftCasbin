@@ -134,19 +134,43 @@ You can also use the online editor (http://casbin.org/editor/) to write your Cas
 
 https://casbin.org/docs/tutorials
 
+## Platform Support
+
+SwiftCasbin supports the following platforms:
+
+- **iOS** 16.0+
+- **macOS** 13.0+
+- **watchOS** 9.0+
+- **tvOS** 16.0+
+- **visionOS** 1.0+
+- **Linux** (Swift 6.0+)
+- **Windows** (Swift 6.0+)
+
+### Requirements
+
+- Swift 6.0 or later
+- Xcode 16.0+ (for Apple platforms)
+
 ## Get started
 
 1. SwiftCasbin in your own project, it's as simple as adding a `dependencies` clause to your `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/casbin/SwiftCasbin", from: "1.0.0")
+.package(url: "https://github.com/casbin/SwiftCasbin", from: "2.0.0")
 ```
 
 2. Add an enforcement hook into your code right before the access happens:
 
 ```swift
 import Casbin
-let e = try Enforer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+
+// SwiftCasbin 2.0+ uses async/await
+let model = try await DefaultModel.from(file: "examples/rbac_model.conf")
+let adapter = FileAdapter(filePath: "examples/rbac_policy.csv")
+let enforcer = try await Enforcer(m: model, adapter: adapter)
+
+// Check permissions
+let allowed = try enforcer.enforce("alice", "data1", "read").get()
 ```
 
 3. Besides the static policy file, Casbin also provides API for permission management at run-time. For example, You can get all the roles assigned to a user as below:

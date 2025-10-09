@@ -12,87 +12,78 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
+import Foundation
 
-public typealias LoadPolicyFileHandler = (String,Model) -> Void
-public typealias LoadFilteredPolicyFileHandler = (String,Model,Filter) -> Bool
+public typealias LoadPolicyFileHandler = @Sendable (String, Model) -> Void
+public typealias LoadFilteredPolicyFileHandler = @Sendable (String, Model, Filter) -> Bool
 
-public final class FileAdapter {
-    var filePath:String
-    public var isFiltered:Bool = false
-    public var eventloop: EventLoop
-    public var fileIo: NonBlockingFileIO
-    
-    public init(filePath:String,fileIo:NonBlockingFileIO,eventloop:EventLoop) {
-        self.fileIo = fileIo
-        self.eventloop = eventloop
+public final class FileAdapter: Sendable {
+    private let filePath: String
+    private let filtered: Mutex<Bool> = Mutex(false)
+
+    public var isFiltered: Bool {
+        filtered.withLock { $0 }
+    }
+
+    public init(filePath: String) {
         self.filePath = filePath
     }
-    func load() -> EventLoopFuture<ByteBuffer> {
-        fileIo.openFile(path: filePath, eventLoop: eventloop).flatMap { [self] arg -> EventLoopFuture<ByteBuffer> in
-            fileIo.read(fileRegion: arg.1, allocator: .init(), eventLoop: eventloop)
-                .flatMapThrowing { buffer in
-                    try arg.0.close()
-                    return buffer
-                }
+
+    private func load() async throws -> String {
+        let url = URL(fileURLWithPath: filePath)
+        let data = try Data(contentsOf: url)
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw CasbinError.IoError("Failed to decode file content as UTF-8")
+        }
+        return content
+    }
+
+    private func loadPolicyFile(m: Model, handler: @escaping LoadPolicyFileHandler) async throws {
+        let content = try await load()
+        let lines = content.split(separator: "\n")
+        lines.forEach {
+            handler(String($0), m)
         }
     }
-    
-    func loadPolicyFile(m:Model,handler:@escaping LoadPolicyFileHandler) -> EventLoopFuture<Void> {
-        load().map { buffer in
-            let s = buffer.getString(at: 0, length: buffer.readableBytes) ?? ""
-            let lines = s.split(separator: "\n")
-            lines.forEach {
-                handler(String($0),m)
+
+    private func loadFilteredPolicyFile(m: Model, filter: Filter, handler: @escaping LoadFilteredPolicyFileHandler) async throws -> Bool {
+        let content = try await load()
+        let lines = content.split(separator: "\n")
+        var isFiltered = false
+        for line in lines {
+            if handler(String(line), m, filter) {
+                isFiltered = true
             }
         }
+        return isFiltered
     }
-    func loadFilteredPolicyFile(m:Model,filter:Filter,handler: @escaping LoadFilteredPolicyFileHandler)-> EventLoopFuture<Bool> {
-        load().map { buffer in
-            let s = buffer.getString(at: 0, length: buffer.readableBytes) ?? ""
-            let lines = s.split(separator: "\n")
-            var isFiltered = false
-            for line in lines {
-                if handler(String(line),m,filter) {
-                    isFiltered = true
-                }
-            }
-            return isFiltered
+
+    private func savePolicyFile(text: String) async throws {
+        let url = URL(fileURLWithPath: filePath)
+        guard let data = text.data(using: .utf8) else {
+            throw CasbinError.IoError("Failed to encode text as UTF-8")
         }
+        try data.write(to: url, options: .atomic)
     }
-    
-    func savePolicyFile(text:String) -> EventLoopFuture<Void> {
-        fileIo.openFile(path: filePath,
-                        mode: .write,
-                        flags: .allowFileCreation(),
-                        eventLoop: eventloop)
-            .flatMap { [self] handle in
-                            fileIo.write(fileHandle: handle,
-                                         buffer: .init(string: text),
-                                         eventLoop: eventloop)
-                            .flatMapThrowing { _ in try handle.close()}
-                        }
-        }
 }
 
 extension FileAdapter: Adapter {
-    public func loadPolicy(m: Model) -> EventLoopFuture<Void> {
-        loadPolicyFile(m: m, handler:Util.loadPolicyLine(line:m:))
+    public func loadPolicy(m: Model) async throws {
+        try await loadPolicyFile(m: m, handler: Util.loadPolicyLine(line:m:))
     }
 
-    public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
-        loadFilteredPolicyFile(m: m, filter: f, handler: Util.loadFilteredPolicyLine).map {
-            self.isFiltered = $0
-        }
+    public func loadFilteredPolicy(m: Model, f: Filter) async throws {
+        let isFiltered = try await loadFilteredPolicyFile(m: m, filter: f, handler: Util.loadFilteredPolicyLine)
+        filtered.withLock { $0 = isFiltered }
     }
 
-    public func savePolicy(m: Model) -> EventLoopFuture<Void> {
+    public func savePolicy(m: Model) async throws {
         if filePath.isEmpty {
-            return eventloop.makeFailedFuture(CasbinError.IoError("save policy failed, file path is empty"))
+            throw CasbinError.IoError("save policy failed, file path is empty")
         }
         var policies = ""
         guard let astMap = m.getModel()["p"] else {
-            return eventloop.makeFailedFuture(CasbinError.MODEL_ERROR(.P("Missing policy definition in conf file")))
+            throw CasbinError.MODEL_ERROR(.P("Missing policy definition in conf file"))
         }
         for (ptype,ast) in astMap {
             for rule in ast.policy {
@@ -106,37 +97,35 @@ extension FileAdapter: Adapter {
                 }
             }
         }
-        return savePolicyFile(text: policies)
+        try await savePolicyFile(text: policies)
     }
 
-    public func clearPolicy() -> EventLoopFuture<Void> {
-        savePolicyFile(text: "")
+    public func clearPolicy() async throws {
+        try await savePolicyFile(text: "")
     }
 
-    public func addPolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
+    public func addPolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
         // this api shouldn't implement, just for convenience
-        eventloop.makeSucceededFuture(true)
+        return true
     }
 
-    public func addPolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
+    public func addPolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
         // this api shouldn't implement, just for convenience
-        eventloop.makeSucceededFuture(true)
+        return true
     }
 
-    public func removePolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
+    public func removePolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
         // this api shouldn't implement, just for convenience
-        eventloop.makeSucceededFuture(true)
+        return true
     }
 
-    public func removePolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
+    public func removePolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
         // this api shouldn't implement, just for convenience
-        eventloop.makeSucceededFuture(true)
+        return true
     }
 
-    public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) -> EventLoopFuture<Bool> {
+    public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
         // this api shouldn't implement, just for convenience
-        eventloop.makeSucceededFuture(true)
+        return true
     }
-
-
 }

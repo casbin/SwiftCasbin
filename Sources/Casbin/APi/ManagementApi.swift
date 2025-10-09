@@ -12,48 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
 public extension CoreApi {
     //MARK:ManagementApi
-    func addNamedPolicy(ptype:String,params:[String]) -> EventLoopFuture<Bool> {
-        addPolicyInternal(sec: "p", ptype: ptype, rule: params)
+    func addNamedPolicy(ptype: String, params: [String]) async throws -> Bool {
+        try await addPolicyInternal(sec: "p", ptype: ptype, rule: params)
     }
-    func addNamedPolicies(ptype:String,paramss:[[String]]) -> EventLoopFuture<Bool> {
-        addPoliciesInternal(sec: "p", ptype: ptype, rules: paramss)
+    func addNamedPolicies(ptype: String, paramss: [[String]]) async throws -> Bool {
+        try await addPoliciesInternal(sec: "p", ptype: ptype, rules: paramss)
     }
-    func removeNamedPolicy(ptype:String,params:[String]) -> EventLoopFuture<Bool> {
-        removePolicyInternal(sec: "p", ptype: ptype, rule: params)
+    func removeNamedPolicy(ptype: String, params: [String]) async throws -> Bool {
+        try await removePolicyInternal(sec: "p", ptype: ptype, rule: params)
     }
-    func removeNamedPolicies(ptype:String,paramss:[[String]]) -> EventLoopFuture<Bool> {
-        removePoliciesInternal(sec: "p", ptype: ptype, rules: paramss)
+    func removeNamedPolicies(ptype: String, paramss: [[String]]) async throws -> Bool {
+        try await removePoliciesInternal(sec: "p", ptype: ptype, rules: paramss)
     }
-    func addNamedGroupingPolicy(ptype:String,params:[String]) -> EventLoopFuture<Bool> {
-        addPolicyInternal(sec: "g", ptype: ptype, rule: params)
+    func addNamedGroupingPolicy(ptype: String, params: [String]) async throws -> Bool {
+        try await addPolicyInternal(sec: "g", ptype: ptype, rule: params)
     }
-    func addNamedGroupingPolicies(ptype:String,paramss:[[String]]) -> EventLoopFuture<Bool> {
-        addPoliciesInternal(sec: "g", ptype: ptype, rules: paramss)
+    func addNamedGroupingPolicies(ptype: String, paramss: [[String]]) async throws -> Bool {
+        try await addPoliciesInternal(sec: "g", ptype: ptype, rules: paramss)
     }
-    func removeNamedGroupingPolicy(ptype:String,params:[String]) -> EventLoopFuture<Bool> {
-        removePolicyInternal(sec: "g", ptype: ptype, rule: params)
+    func removeNamedGroupingPolicy(ptype: String, params: [String]) async throws -> Bool {
+        try await removePolicyInternal(sec: "g", ptype: ptype, rule: params)
     }
-    func removeNamedGroupingPolicies(ptype:String,paramss:[[String]]) -> EventLoopFuture<Bool> {
-        removePoliciesInternal(sec: "g", ptype: ptype, rules: paramss)
+    func removeNamedGroupingPolicies(ptype: String, paramss: [[String]]) async throws -> Bool {
+        try await removePoliciesInternal(sec: "g", ptype: ptype, rules: paramss)
     }
-    func removeFilteredNamedGroupingPolicy(ptype:String,
-                                           fieldIndex:Int,
-                                           fieldValues:[String])
-                                             -> EventLoopFuture<Bool> {
-        removeFilteredPolicyInternal(sec: "g", ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues).map {
-            $0.0
-        }
+    func removeFilteredNamedGroupingPolicy(ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
+        let result = try await removeFilteredPolicyInternal(sec: "g", ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
+        return result.0
     }
-    func removeFilteredNamedPolicy(ptype:String,
-                                           fieldIndex:Int,
-                                           fieldValues:[String])
-                                             -> EventLoopFuture<Bool> {
-        removeFilteredPolicyInternal(sec: "p", ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues).map {
-            $0.0
-        }
+    func removeFilteredNamedPolicy(ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
+        let result = try await removeFilteredPolicyInternal(sec: "p", ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
+        return result.0
     }
     func getNamedPolicy(ptype:String) -> [[String]] {
         model.getPolicy(sec: "p", ptype: ptype)
@@ -121,39 +112,35 @@ public extension CoreApi {
 }
 
 public extension CoreApi {
-    func addPolicy(params:[String]) -> EventLoopFuture<Bool> {
-        addNamedPolicy(ptype: "p", params: params)
+    func addPolicy(params: [String]) async throws -> Bool {
+        try await addNamedPolicy(ptype: "p", params: params)
     }
-    func addPolicies(paramss:[[String]]) -> EventLoopFuture<Bool> {
-        addNamedPolicies(ptype: "p", paramss: paramss)
+    func addPolicies(paramss: [[String]]) async throws -> Bool {
+        try await addNamedPolicies(ptype: "p", paramss: paramss)
     }
-    func removePolicy(params:[String]) -> EventLoopFuture<Bool> {
-        removeNamedPolicy(ptype: "p", params: params)
+    func removePolicy(params: [String]) async throws -> Bool {
+        try await removeNamedPolicy(ptype: "p", params: params)
     }
-    func removePolicies(paramss:[[String]]) -> EventLoopFuture<Bool> {
-        removeNamedPolicies(ptype: "p", paramss: paramss)
+    func removePolicies(paramss: [[String]]) async throws -> Bool {
+        try await removeNamedPolicies(ptype: "p", paramss: paramss)
     }
-    func addGroupingPolicy(params:[String]) -> EventLoopFuture<Bool> {
-        addNamedGroupingPolicy(ptype: "g", params: params)
+    func addGroupingPolicy(params: [String]) async throws -> Bool {
+        try await addNamedGroupingPolicy(ptype: "g", params: params)
     }
-    func addGroupingPolicies(paramss:[[String]]) -> EventLoopFuture<Bool> {
-        addNamedGroupingPolicies(ptype: "g", paramss: paramss)
+    func addGroupingPolicies(paramss: [[String]]) async throws -> Bool {
+        try await addNamedGroupingPolicies(ptype: "g", paramss: paramss)
     }
-    func removeGroupingPolicy(params:[String]) -> EventLoopFuture<Bool> {
-        removeNamedGroupingPolicy(ptype: "g", params: params)
+    func removeGroupingPolicy(params: [String]) async throws -> Bool {
+        try await removeNamedGroupingPolicy(ptype: "g", params: params)
     }
-    func removeGroupingPolicies(paramss:[[String]]) -> EventLoopFuture<Bool> {
-        removeNamedGroupingPolicies(ptype: "g", paramss: paramss)
+    func removeGroupingPolicies(paramss: [[String]]) async throws -> Bool {
+        try await removeNamedGroupingPolicies(ptype: "g", paramss: paramss)
     }
-    func removeFilteredPolicy(fieldIndex:Int,
-                              fieldValues:[String])
-                                             -> EventLoopFuture<Bool> {
-        removeFilteredNamedPolicy(ptype: "p", fieldIndex: fieldIndex, fieldValues: fieldValues)
+    func removeFilteredPolicy(fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
+        try await removeFilteredNamedPolicy(ptype: "p", fieldIndex: fieldIndex, fieldValues: fieldValues)
     }
-    func removeFilteredGroupingPolicy(fieldIndex:Int,
-                              fieldValues:[String])
-                                             -> EventLoopFuture<Bool> {
-        removeFilteredNamedGroupingPolicy(ptype: "g", fieldIndex: fieldIndex, fieldValues: fieldValues)
+    func removeFilteredGroupingPolicy(fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
+        try await removeFilteredNamedGroupingPolicy(ptype: "g", fieldIndex: fieldIndex, fieldValues: fieldValues)
     }
     func getPolicy() -> [[String]] {
         getNamedPolicy(ptype: "p")

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIOConcurrencyHelpers
+import Foundation
 extension Enforcer {
     internal var core: Core {
         .init(ef: self)
@@ -47,7 +47,7 @@ extension Enforcer {
         self.core.storage.locks
     }
 
-    public var sync: Lock {
+    public var sync: Mutex<()> {
         self.locks.main
     }
     
@@ -85,26 +85,27 @@ extension Enforcer {
         }
     }
     
-    public final class Locks {
-        public let main: Lock
-        var storage: [ObjectIdentifier: Lock]
+    public final class Locks: @unchecked Sendable {
+        public let main: Mutex<()>
+        var storage: [ObjectIdentifier: Mutex<()>]
+        private let storageLock = Mutex(())
 
         init() {
-            self.main = .init()
+            self.main = Mutex(())
             self.storage = [:]
         }
 
-        public func lock<Key>(for key: Key.Type) -> Lock
+        public func lock<Key>(for key: Key.Type) -> Mutex<()>
             where Key: LockKey
         {
-            self.main.lock()
-            defer { self.main.unlock() }
-            if let existing = self.storage[ObjectIdentifier(Key.self)] {
-                return existing
-            } else {
-                let new = Lock()
-                self.storage[ObjectIdentifier(Key.self)] = new
-                return new
+            return storageLock.withLock { _ in
+                if let existing = self.storage[ObjectIdentifier(Key.self)] {
+                    return existing
+                } else {
+                    let new = Mutex(())
+                    self.storage[ObjectIdentifier(Key.self)] = new
+                    return new
+                }
             }
         }
     }

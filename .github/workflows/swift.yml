@@ -1,0 +1,61 @@
+name: Swift CI
+
+on:
+  push:
+    branches: [ master, feat/swift-6-concurrency ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Swift ${{ matrix.swift }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        swift: ['6.0']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Swift
+      uses: SwiftyLab/setup-swift@latest
+      with:
+        swift-version: ${{ matrix.swift }}
+
+    - name: Swift Version
+      run: swift --version
+
+    - name: Build
+      run: swift build -v
+
+    - name: Run tests
+      run: swift test -v
+
+  build-xcode:
+    name: Xcode / macOS
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+
+    - name: Swift Version
+      run: swift --version
+
+    - name: Build for macOS
+      run: swift build -v
+
+    - name: Build for iOS
+      run: |
+        xcodebuild -scheme Casbin \
+          -destination 'platform=iOS Simulator,name=iPhone 15' \
+          -sdk iphonesimulator \
+          build
+
+    - name: Run tests
+      run: swift test -v

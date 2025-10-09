@@ -15,7 +15,6 @@
 // limitations under the License.
 
 import Foundation
-import NIO
 /// Custom cache
 /// ```
 /// extension Application.Caches.Provider {
@@ -74,14 +73,14 @@ extension Enforcer {
         }
         private var memoryStorage: LruCache<Int,Bool> {
             let lock = self.enforcer.locks.lock(for: MemoryCacheKey.self)
-            lock.lock()
-            defer { lock.unlock() }
-            if let existing = self.enforcer.storage.get(MemoryCacheKey.self) {
-                return existing
-            } else {
-                let new = LruCache<Int,Bool>.init(capacity: 200)
-                self.enforcer.storage.set(MemoryCacheKey.self, to: new)
-                return new
+            return lock.withLock { _ in
+                if let existing = self.enforcer.storage.get(MemoryCacheKey.self) {
+                    return existing
+                } else {
+                    let new = LruCache<Int,Bool>.init(capacity: 200)
+                    self.enforcer.storage.set(MemoryCacheKey.self, to: new)
+                    return new
+                }
             }
         }
         private struct MemoryCacheKey: LockKey,StorageKey {

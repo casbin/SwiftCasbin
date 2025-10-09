@@ -12,33 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
-public final class DefaultModel {
+public final class DefaultModel: @unchecked Sendable {
     var model: [String:[String:Assertion]] = [:]
-    public static func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
-        Config.from(file: file,fileIo: fileIo,on: eventloop).flatMap {
-            let model = DefaultModel.init()
-            for sec in ["r","p","e","m","g"] {
-                let r =  model.loadSection(cfg: $0, sec: sec)
-                if case .failure(let e) = r {
-                    return eventloop.makeFailedFuture(e)
-                }
-            }
-            return eventloop.makeSucceededFuture(model)
+    public static func from(file: String) async throws -> DefaultModel {
+        let cfg = try await Config.from(file: file)
+        let model = DefaultModel.init()
+        for sec in ["r","p","e","m","g"] {
+            try model.loadSection(cfg: cfg, sec: sec).get()
         }
+        return model
     }
-    public static func from(text:String,on eventloop:EventLoop) -> EventLoopFuture<DefaultModel> {
-        Config.from(text: text, on: eventloop).flatMap {
-            let model = DefaultModel.init()
-            for sec in ["r","p","e","m","g"] {
-                let r =  model.loadSection(cfg: $0, sec: sec)
-                if case .failure(let e) = r {
-                    return eventloop.makeFailedFuture(e)
-                }
-            }
-            return eventloop.makeSucceededFuture(model)
+    public static func from(text: String) throws -> DefaultModel {
+        let cfg = try Config.from(text: text)
+        let model = DefaultModel.init()
+        for sec in ["r","p","e","m","g"] {
+            try model.loadSection(cfg: cfg, sec: sec).get()
         }
-        
+        return model
     }
     public init() {
         

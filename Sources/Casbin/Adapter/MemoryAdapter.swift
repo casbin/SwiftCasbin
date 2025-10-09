@@ -12,180 +12,183 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
-
-public final class MemoryAdapter {
-    public init(on eventloop: EventLoop) {
-        self.eventloop = eventloop
+public final class MemoryAdapter: Sendable {
+    public init() {
     }
-    
-    var policy:Set<[String]> = []
-    public var isFiltered: Bool = false
-    public var eventloop: EventLoop
+
+    private let policy: Mutex<Set<[String]>> = Mutex(Set<[String]>())
+    private let filtered: Mutex<Bool> = Mutex(false)
+
+    public var isFiltered: Bool {
+        filtered.withLock { $0 }
+    }
 }
 
 extension MemoryAdapter: Adapter {
-   
-    
-    public func loadPolicy(m: Model) -> EventLoopFuture<Void> {
-        for line in policy {
-            let sec = line[0]
-            let ptype = line[1]
-            let rule = Array(line[1...])
-            if let ast = m.getModel()[sec]?[ptype] {
-                ast.policy.append(rule)
-            }
-        }
-        return eventloop.makeSucceededVoidFuture()
-    }
-    
-    public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
-        for line in policy {
-            let sec = line[0]
-            let ptype = line[1]
-            let rule = Array(line[1...])
-            var isFiltered = false
-            if sec == "p" {
-                for (i,r) in f.p.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
-                        isFiltered = true
-                    }
-                }
-            }
-            if sec == "g" {
-                for (i,r) in f.g.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
-                        isFiltered = true
-                    }
-                }
-            }
-            if !isFiltered {
+    public func loadPolicy(m: Model) async throws {
+        policy.withLock { policySet in
+            for line in policySet {
+                let sec = line[0]
+                let ptype = line[1]
+                let rule = Array(line[1...])
                 if let ast = m.getModel()[sec]?[ptype] {
                     ast.policy.append(rule)
                 }
-            } else {
-                self.isFiltered = true
             }
         }
-        return eventloop.makeSucceededVoidFuture()
     }
-    
-    public func savePolicy(m: Model) -> EventLoopFuture<Void> {
-        self.policy = []
-        if let astMap = m.getModel()["p"] {
-            for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
+
+    public func loadFilteredPolicy(m: Model, f: Filter) async throws {
+        policy.withLock { policySet in
+            for line in policySet {
+                let sec = line[0]
+                let ptype = line[1]
+                let rule = Array(line[1...])
+                var isFiltered = false
+                if sec == "p" {
+                    for (i,r) in f.p.enumerated() {
+                        if !r.isEmpty && r != rule[i+1] {
+                            isFiltered = true
+                        }
+                    }
+                }
+                if sec == "g" {
+                    for (i,r) in f.g.enumerated() {
+                        if !r.isEmpty && r != rule[i+1] {
+                            isFiltered = true
+                        }
+                    }
+                }
+                if !isFiltered {
+                    if let ast = m.getModel()[sec]?[ptype] {
+                        ast.policy.append(rule)
+                    }
+                } else {
+                    filtered.withLock { $0 = true }
+                }
+            }
+        }
+    }
+
+    public func savePolicy(m: Model) async throws {
+        policy.withLock { policySet in
+            policySet = []
+            if let astMap = m.getModel()["p"] {
+                for (ptype,ast) in astMap {
+                    ptype.forEach { sec in
+                        for policy in ast.policy {
+                            var rule = policy
+                            rule.insert(ptype, at: 0)
+                            rule.insert(String(sec), at: 0)
+                            policySet.insert(rule)
+                        }
+                    }
+                }
+            }
+            if let astMap = m.getModel()["g"] {
+                for (ptype,ast) in astMap {
+                    ptype.forEach { sec in
+                        for policy in ast.policy {
+                            var rule = policy
+                            rule.insert(ptype, at: 0)
+                            rule.insert(String(sec), at: 0)
+                            policySet.insert(rule)
+                        }
                     }
                 }
             }
         }
-        if let astMap = m.getModel()["g"] {
-            for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+    }
+
+    public func clearPolicy() async throws {
+        policy.withLock { $0 = [] }
+        filtered.withLock { $0 = false }
+    }
+
+    public func addPolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
+        var rule = rule
+        rule.insert(ptype, at: 0)
+        rule.insert(sec, at: 0)
+        return policy.withLock { $0.insert(rule).inserted }
+    }
+
+    public func addPolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
+        return policy.withLock { policySet in
+            var allAdded = true
+            let rules:[[String]] = rules.map { rule in
+                var rule = rule
+                rule.insert(ptype, at: 0)
+                rule.insert(sec, at: 0)
+                return rule
+            }
+            for rule in rules {
+                if policySet.contains(rule) {
+                    allAdded = false
+                    return allAdded
                 }
             }
+            policySet = policySet.union(rules)
+            return allAdded
         }
-        return eventloop.makeSucceededVoidFuture()
     }
-    
-    public func clearPolicy() -> EventLoopFuture<Void> {
-        self.policy = []
-        self.isFiltered = false
-        return eventloop.makeSucceededVoidFuture()
-    }
-    
-    public func addPolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
+
+    public func removePolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
         var rule = rule
         rule.insert(ptype, at: 0)
         rule.insert(sec, at: 0)
-        return eventloop.makeSucceededFuture(self.policy.insert(rule).inserted)
-        
+        return policy.withLock { $0.remove(rule) != nil }
     }
-    
-    public func addPolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
-        var allAdded = true
-        let rules:[[String]] = rules.map { rule in
-            var rule = rule
-            rule.insert(ptype, at: 0)
-            rule.insert(sec, at: 0)
-            return rule
-        }
-        for rule in rules {
-            if policy.contains(rule) {
-                allAdded = false
-                return eventloop.makeSucceededFuture(allAdded)
+
+    public func removePolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
+        return policy.withLock { policySet in
+            var allRemoved = true
+            let rules:[[String]] = rules.map { rule in
+                var rule = rule
+                rule.insert(ptype, at: 0)
+                rule.insert(sec, at: 0)
+                return rule
             }
-        }
-        self.policy = self.policy.union(rules)
-        return eventloop.makeSucceededFuture(allAdded)
-    }
-    
-    public func removePolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
-        var rule = rule
-        rule.insert(ptype, at: 0)
-        rule.insert(sec, at: 0)
-        return eventloop.makeSucceededFuture(policy.remove(rule) != nil)
-    }
-    
-    public func removePolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
-        var allRemoved = true
-        let  rules:[[String]] = rules.map { rule in
-            var rule = rule
-            rule.insert(ptype, at: 0)
-            rule.insert(sec, at: 0)
-            return rule
-        }
-        for rule in rules {
-            if policy.contains(rule) {
-                allRemoved = false
-                return eventloop.makeSucceededFuture(allRemoved)
+            for rule in rules {
+                if policySet.contains(rule) {
+                    allRemoved = false
+                    return allRemoved
+                }
             }
+            for rule in rules {
+                policySet.remove(rule)
+            }
+            return allRemoved
         }
-        for rule in rules {
-            self.policy.remove(rule)
-        }
-        return eventloop.makeSucceededFuture(allRemoved)
     }
-    
-    public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) -> EventLoopFuture<Bool> {
+
+    public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
         if fieldValues.isEmpty {
-            return eventloop.makeSucceededFuture(false)
+            return false
         }
-        var tmp:Set<[String]> = []
-        var res = false
-        for rule in policy {
-            if sec == rule[0] && ptype == rule [1] {
-                var matched = true
-                for (i,fieldValue) in fieldValues.enumerated() {
-                    if !fieldValue.isEmpty
-                        && rule[fieldIndex + i + 2] != fieldValue {
-                        matched = false
-                        break
+        return policy.withLock { policySet in
+            var tmp:Set<[String]> = []
+            var res = false
+            for rule in policySet {
+                if sec == rule[0] && ptype == rule [1] {
+                    var matched = true
+                    for (i,fieldValue) in fieldValues.enumerated() {
+                        if !fieldValue.isEmpty
+                            && rule[fieldIndex + i + 2] != fieldValue {
+                            matched = false
+                            break
+                        }
                     }
-                }
-                if matched {
-                    res = true
+                    if matched {
+                        res = true
+                    } else {
+                        tmp.insert(rule)
+                    }
                 } else {
                     tmp.insert(rule)
                 }
-            } else {
-                tmp.insert(rule)
             }
+            policySet = tmp
+            return res
         }
-        self.policy = tmp
-        return eventloop.makeSucceededFuture(res)
     }
-    
-    
 }

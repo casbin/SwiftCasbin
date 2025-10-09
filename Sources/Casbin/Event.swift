@@ -56,7 +56,7 @@ public protocol EventKey:Hashable & Equatable {}
 
 public protocol EventEmitter {
     associatedtype K:EventKey
-    func on(e:K,f:@escaping (EventData,Self) -> Void)
+    func on(e:K,f:@escaping @Sendable (EventData,Self) -> Void)
     func off(e:K)
     func emit(e:K,d:EventData)
 }

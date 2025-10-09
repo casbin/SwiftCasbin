@@ -12,37 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
-
-public struct Filter {
+public struct Filter: Sendable {
     public init(p: [String], g: [String]) {
         self.p = p
         self.g = g
     }
-    
+
     public let p: [String]
     public let g: [String]
 }
 
-public protocol Adapter {
-    var eventloop: EventLoop {get}
-    
-    func loadPolicy(m:Model) -> EventLoopFuture<Void>
-    
-    func loadFilteredPolicy(m:Model,f:Filter) -> EventLoopFuture<Void>
-    
-    func savePolicy(m: Model) -> EventLoopFuture<Void>
-    func clearPolicy() -> EventLoopFuture<Void>
-    
+public protocol Adapter: Sendable {
+    func loadPolicy(m: Model) async throws
+
+    func loadFilteredPolicy(m: Model, f: Filter) async throws
+
+    func savePolicy(m: Model) async throws
+    func clearPolicy() async throws
+
     var isFiltered: Bool {get}
-    
-    func addPolicy(sec:String,ptype:String,rule:[String]) -> EventLoopFuture<Bool>
-    
-    func addPolicies(sec:String,ptype:String,rules:[[String]]) -> EventLoopFuture<Bool>
-    
-    func removePolicy(sec:String,ptype:String,rule:[String]) -> EventLoopFuture<Bool>
-    
-    func removePolicies(sec:String,ptype:String,rules:[[String]]) -> EventLoopFuture<Bool>
-    
-    func removeFilteredPolicy(sec:String,ptype:String,fieldIndex:Int,fieldValues:[String]) -> EventLoopFuture<Bool>
+
+    func addPolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool
+
+    func addPolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool
+
+    func removePolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool
+
+    func removePolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool
+
+    func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool
 }

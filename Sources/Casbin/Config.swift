@@ -12,42 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
+import Foundation
 
-public struct Config {
+public struct Config: Sendable {
     var data: [String:[String:String]] = [:]
     static let DEFAULT_SECTION = "default"
     static let DEFAULT_COMMENT:Character = "#"
     static let DEFAULT_COMMENT_SEM:Character = ";"
     static let DEFAULT_MULTI_LINE_SEPARATOR:Character = "\\"
-    var eventLoop:EventLoop
 
-    public static func from(file:String,fileIo:NonBlockingFileIO,on eventloop:EventLoop) -> EventLoopFuture<Self> {
-        fileIo.openFile(path: file, eventLoop: eventloop).flatMap { arg -> EventLoopFuture<ByteBuffer> in
-            fileIo.read(fileRegion: arg.1, allocator: .init(), eventLoop: eventloop)
-                .flatMapThrowing { buffer in
-                    try arg.0.close()
-                    return buffer
-                }
-        }.flatMap { buffer in
-            let s = buffer.getString(at: 0, length: buffer.readableBytes) ?? ""
-            var config = Config.init(eventLoop: eventloop)
-            switch config.parse(s) {
-            case .success:
-                return eventloop.makeSucceededFuture(config)
-            case .failure(let e) :
-                return eventloop.makeFailedFuture(e)
-            }
+    public static func from(file: String) async throws -> Self {
+        let url = URL(fileURLWithPath: file)
+        let data = try Data(contentsOf: url)
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CasbinError.IoError("Failed to decode file content as UTF-8")
         }
+        var config = Config()
+        try config.parse(text).get()
+        return config
     }
-    public static func from(text:String,on eventloop:EventLoop) -> EventLoopFuture<Self> {
-        var config = Config.init(eventLoop: eventloop)
-        switch config.parse(text) {
-        case .success:
-            return eventloop.makeSucceededFuture(config)
-        case .failure(let e) :
-            return eventloop.makeFailedFuture(e)
-        }
+
+    public static func from(text: String) throws -> Self {
+        var config = Config()
+        try config.parse(text).get()
+        return config
     }
     private mutating func parse(_ s: String) -> CasbinResult<Void> {
         let s = s.replacingOccurrences(of: "\r", with: "")

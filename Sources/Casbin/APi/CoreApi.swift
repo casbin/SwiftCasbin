@@ -12,52 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
 import Logging
 
-public protocol CoreApi:EventEmitter where K == Event {
-    func addFunction(fname:String,f:@escaping ExpressionFunction)
-    var eventLoopGroup: EventLoopGroup {get}
+public protocol CoreApi: EventEmitter where K == Event {
+    func addFunction(fname: String, f: @escaping ExpressionFunction)
     var model: Model {get}
     var adapter: Adapter {get}
     var watcher: Watcher? {get set}
-    
+
     func getRoleManager() -> RoleManager
-    
-    func setRoleManager(rm:RoleManager) -> CasbinResult<Void>
-    
+
+    func setRoleManager(rm: RoleManager) -> CasbinResult<Void>
+
     var logger: Logger {get set}
-    
-    func setModel(_ model: Model) -> EventLoopFuture<Void>
-    
-    func setAdapter(_ adapter: Adapter) -> EventLoopFuture<Void>
-    
-    func enforce(rvals:[Any]) -> Result<Bool,Error>
-    
+
+    func setModel(_ model: Model) async throws
+
+    func setAdapter(_ adapter: Adapter) async throws
+
+    func enforce(rvals: [Any]) -> Result<Bool,Error>
+
     func buildRoleLinks() -> CasbinResult<Void>
-    
-    func buildIncrementalRoleLinks(eventData:EventData) ->  CasbinResult<Void>
-    
-    func loadPolicy() -> EventLoopFuture<Void>
-    func loadFilterdPolicy(_ f:Filter) -> EventLoopFuture<Void>
-    
+
+    func buildIncrementalRoleLinks(eventData: EventData) -> CasbinResult<Void>
+
+    func loadPolicy() async throws
+    func loadFilterdPolicy(_ f: Filter) async throws
+
     var isFiltered: Bool {get}
     var isEnabled: Bool { get }
-    var  enableLog:Bool {get set}
-    
-    func savePolicy() -> EventLoopFuture<Void>
-    func clearPolicy() -> EventLoopFuture<Void>
-    
-    func enableAutoSave(auto:Bool)
-    func enableEnforce(enabled:Bool)
+    var enableLog: Bool {get set}
+
+    func savePolicy() async throws
+    func clearPolicy() async throws
+
+    func enableAutoSave(auto: Bool)
+    func enableEnforce(enabled: Bool)
     func enableAutoBuildRoleLinks(auto: Bool)
     func enableAutoNotifyWatcher(auto: Bool)
-    
+
     func hasAutoSaveEnable() -> Bool
     func hasAutoNotifyWatcherEnabled() -> Bool
-    
+
     func hasAutoBuildRoleLinksEnabled() -> Bool
-    
+
     func getCache() -> Cache?
     func setCapacity(_ c: Int)
 }

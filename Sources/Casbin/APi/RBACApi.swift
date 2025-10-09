@@ -12,47 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import NIO
-
 public extension CoreApi {
-    func addPermission(for user:String,permission:[String]) -> EventLoopFuture<Bool> {
+    func addPermission(for user: String, permission: [String]) async throws -> Bool {
         var perm = permission
         perm.insert(user, at: 0)
-        return addPolicy(params: perm)
+        return try await addPolicy(params: perm)
     }
-    func addPermissions(for user:String,permissions:[[String]]) -> EventLoopFuture<Bool>{
+    func addPermissions(for user: String, permissions: [[String]]) async throws -> Bool {
         let perms = permissions.map { perm -> [String] in
             var _perm = perm
             _perm.insert(user, at: 0)
             return _perm
         }
-        return addPolicies(paramss: perms)
+        return try await addPolicies(paramss: perms)
     }
-    
-    func addRole(for user:String,role:String,domain:String?)-> EventLoopFuture<Bool> {
-        let params = [user,role,domain].compactMap { $0 }
-        return addGroupingPolicy(params: params)
+
+    func addRole(for user: String, role: String, domain: String?) async throws -> Bool {
+        let params = [user, role, domain].compactMap { $0 }
+        return try await addGroupingPolicy(params: params)
     }
-    
-    func addRoles(for user:String,roles:[String],domain:String?)-> EventLoopFuture<Bool> {
+
+    func addRoles(for user: String, roles: [String], domain: String?) async throws -> Bool {
         let paramss =  roles.map {
-            [user,$0,domain].compactMap {$0 }
+            [user, $0, domain].compactMap {$0 }
         }
-        return addGroupingPolicies(paramss: paramss)
+        return try await addGroupingPolicies(paramss: paramss)
     }
-    func deleteRole(for user:String,role:String,domain:String?)-> EventLoopFuture<Bool> {
-        let params = [user,role,domain].compactMap { $0 }
-        return removeGroupingPolicy(params: params)
+    func deleteRole(for user: String, role: String, domain: String?) async throws -> Bool {
+        let params = [user, role, domain].compactMap { $0 }
+        return try await removeGroupingPolicy(params: params)
     }
-    
-    func deleteRoles(for user:String,roles:[String],domain:String?)-> EventLoopFuture<Bool> {
+
+    func deleteRoles(for user: String, roles: [String], domain: String?) async throws -> Bool {
         var params:[String] = []
         if let domain = domain {
-            params = [user,"",domain]
+            params = [user, "", domain]
         } else {
             params = [user]
         }
-        return removeFilteredGroupingPolicy(fieldIndex: 0, fieldValues: params)
+        return try await removeFilteredGroupingPolicy(fieldIndex: 0, fieldValues: params)
     }
     func getRoles(for name:String,domain:String?) -> [String] {
         var roles:[String] = []
@@ -70,20 +68,18 @@ public extension CoreApi {
     func hasRole(for name:String,role:String,domain:String?) -> Bool {
         getRoles(for: name, domain: domain).contains(role)
     }
-    func deleteUser(name:String) -> EventLoopFuture<Bool> {
-        removeFilteredGroupingPolicy(fieldIndex: 0, fieldValues: [name])
+    func deleteUser(name: String) async throws -> Bool {
+        try await removeFilteredGroupingPolicy(fieldIndex: 0, fieldValues: [name])
     }
-    func deleteRole(name:String) -> EventLoopFuture<Bool> {
-        removeFilteredGroupingPolicy(fieldIndex: 1, fieldValues: [name])
-            .and(removeFilteredPolicy(fieldIndex: 0, fieldValues: [name]))
-            .map {
-                $0.0 == $0.1
-            }
+    func deleteRole(name: String) async throws -> Bool {
+        let result1 = try await removeFilteredGroupingPolicy(fieldIndex: 1, fieldValues: [name])
+        let result2 = try await removeFilteredPolicy(fieldIndex: 0, fieldValues: [name])
+        return result1 == result2
     }
-    func deletePermission(for user:String,permission:[String]) -> EventLoopFuture<Bool> {
+    func deletePermission(for user: String, permission: [String]) async throws -> Bool {
         var _permission = permission
         _permission.insert(user, at: 0)
-        return self.removePolicy(params: _permission)
+        return try await self.removePolicy(params: _permission)
     }
     func getPermission(for user:String,domain:String?) -> [[String]] {
         getFilteredPolicy(fieldIndex: 0, fieldValues: [user,domain].compactMap { $0 })

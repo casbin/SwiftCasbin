@@ -14,56 +14,34 @@
 
 import Logging
 import Expression
-import NIO
 import Foundation
-import NIOTransportServices
-public typealias EventCallback = (EventData,Enforcer) -> Void
 
-public enum EventLoopGroupProvider {
-    case shared(EventLoopGroup)
-    case createNew
-}
-public final class Enforcer {
+public typealias EventCallback = @Sendable (EventData, Enforcer) -> Void
+
+public final class Enforcer: @unchecked Sendable {
     public var storage: Storage
     public var logger: Logger
-    public var model:Model
+    public var model: Model
     public var adapter: Adapter
-    public let eventLoopGroup:EventLoopGroup
-    public let eventLoopGroupProvider: EventLoopGroupProvider
-    
+
     var symbols: [AnyExpression.Symbol: AnyExpression.SymbolEvaluator] = [:]
-    var enabled:Bool = true
-    var logEnabled:Bool = true
+    var enabled: Bool = true
+    var logEnabled: Bool = true
     var autoSave: Bool = true
-    var autoBuildRoleLinks:Bool = true
-    var autoNotifyWatcher:Bool = true
-    var events:[Event:[EventCallback]] = [:]
-    
-    public init (m:Model,adapter:Adapter, _ eventLoopGroupProvider: EventLoopGroupProvider = .createNew) throws {
+    var autoBuildRoleLinks: Bool = true
+    var autoNotifyWatcher: Bool = true
+    var events: [Event:[EventCallback]] = [:]
+
+    public init(m: Model, adapter: Adapter) async throws {
         self.storage = .init()
         self.model = m
         self.adapter = adapter
-        self.eventLoopGroupProvider = eventLoopGroupProvider
-        switch eventLoopGroupProvider {
-        case .shared(let group):
-            self.eventLoopGroup = group
-        case .createNew:
-            #if canImport(Network)
-            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
-                self.eventLoopGroup = NIOTSEventLoopGroup()
-            } else {
-                self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-            }
-            #else
-            self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-            #endif
-        }
         self.logger = .init(label: "swift.casbin")
         self.core.initialize()
-        self.fm.functions.forEach { (key: String, value: @escaping ExpressionFunction) in
+        for (key, value) in self.fm.functions {
             symbols[.function(key, arity: .atLeast(2))] = value
         }
-        
+
         symbols[.infix("in")] = { args in
             guard let left = args[0] as? String,
                   let right = args[1] as? Array<String> else {
@@ -71,20 +49,19 @@ public final class Enforcer {
             }
             return right.contains(left)
         }
-        
+
         try registerGFunctions().get()
         if self.cache != nil {
             self.on(e: Event.ClearCache, f: clearCache)
         }
         self.on(e: .PolicyChange, f: notifyLoggerAndWatcher)
-        try loadPolicy().wait()
+        try await loadPolicy()
     }
-    
 }
 
 extension Enforcer: EventEmitter {
-    
-    public func on(e: Event, f: @escaping(EventData, Enforcer) -> Void) {
+
+    public func on(e: Event, f: @escaping @Sendable (EventData, Enforcer) -> Void) {
         var fs = self.events.getOrInsert(key: e, with: [])
         fs.append(f)
         events.updateValue(fs, forKey: e)
@@ -349,15 +326,11 @@ extension Enforcer {
         model.buildIncrementalRoleLinks(rm: roleManager, eventData: eventData)
     }
     
-    public func loadPolicy() -> EventLoopFuture<Void> {
+    public func loadPolicy() async throws {
         model.clearPolicy()
-        return adapter.loadPolicy(m: model).flatMap {
-            if self.autoBuildRoleLinks {
-                if case .failure(let e) = self.buildRoleLinks() {
-                   return self.eventLoopGroup.next().makeFailedFuture(e)
-                }
-            }
-            return self.eventLoopGroup.next().makeSucceededVoidFuture()
+        try await adapter.loadPolicy(m: model)
+        if self.autoBuildRoleLinks {
+            try self.buildRoleLinks().get()
         }
     }
     public var isFiltered:Bool {
@@ -403,32 +376,28 @@ extension Enforcer: CoreApi {
         if autoBuildRoleLinks {
             do {
                 try self.buildRoleLinks().get()
-            } catch  {
-                return .failure(error as! CasbinError)
+            } catch {
+                return .failure(error as? CasbinError ?? .RUNTIME_ERROR(error.localizedDescription))
             }
         }
         return registerGFunctions()
     }
     
-    public func setModel(_ model: Model) -> EventLoopFuture<Void> {
+    public func setModel(_ model: Model) async throws {
         self.model = model
-        return loadPolicy()
+        try await loadPolicy()
     }
-    
-    public func setAdapter(_ adapter: Adapter) -> EventLoopFuture<Void> {
+
+    public func setAdapter(_ adapter: Adapter) async throws {
         self.adapter = adapter
-        return loadPolicy()
+        try await loadPolicy()
     }
-    
-    public func loadFilterdPolicy(_ f: Filter) -> EventLoopFuture<Void> {
+
+    public func loadFilterdPolicy(_ f: Filter) async throws {
         model.clearPolicy()
-        return adapter.loadFilteredPolicy(m: model, f: f).flatMap {
-            if self.autoBuildRoleLinks {
-                if case .failure(let e) = self.buildRoleLinks() {
-                   return self.eventLoopGroup.next().makeFailedFuture(e)
-                }
-            }
-            return self.eventLoopGroup.next().makeSucceededVoidFuture()
+        try await adapter.loadFilteredPolicy(m: model, f: f)
+        if self.autoBuildRoleLinks {
+            try self.buildRoleLinks().get()
         }
     }
     
@@ -436,28 +405,23 @@ extension Enforcer: CoreApi {
         self.enabled
     }
     
-    public func savePolicy() -> EventLoopFuture<Void> {
-        if isFiltered {
-            eventLoopGroup.next().preconditionInEventLoop(file: #file, line: #line)
-        }
-        return adapter.savePolicy(m: model).map { _ in
-            var policies = self.getAllPolicy()
-            let gpolicies = self.getAllGroupingPolicy()
-            policies.append(contentsOf: gpolicies)
-            self.emit(e: Event.PolicyChange, d: .SavePolicy(policies))
-        }
+    public func savePolicy() async throws {
+        try await adapter.savePolicy(m: model)
+        var policies = self.getAllPolicy()
+        let gpolicies = self.getAllGroupingPolicy()
+        policies.append(contentsOf: gpolicies)
+        self.emit(e: Event.PolicyChange, d: .SavePolicy(policies))
     }
-    
-    public func clearPolicy() -> EventLoopFuture<Void> {
+
+    public func clearPolicy() async throws {
         if autoSave {
-            return adapter.clearPolicy().map { [self] _ in
-                model.clearPolicy()
-                emit(e: .PolicyChange, d: .ClearCache)
-            }
+            try await adapter.clearPolicy()
+            model.clearPolicy()
+            emit(e: .PolicyChange, d: .ClearCache)
+        } else {
+            model.clearPolicy()
+            emit(e: .PolicyChange, d: .ClearCache)
         }
-        model.clearPolicy()
-        emit(e: .PolicyChange, d: .ClearCache)
-        return eventLoopGroup.next().makeSucceededVoidFuture()
     }
     
     public func enableAutoSave(auto: Bool) {
