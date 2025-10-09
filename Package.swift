@@ -34,9 +34,6 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Expression", package: "Expression"),
                 .product(name: "Regex", package: "Regex"),
-            ],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
             ]
         ),
         .testTarget(
