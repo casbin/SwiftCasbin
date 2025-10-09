@@ -18,7 +18,7 @@ final class RBACAPITests: XCTestCase {
         return e
     }
 
-    func testRoleApi() async throws {
+    func testRoleAPI() async throws {
         let e = try await makeEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
         XCTAssertEqual(["data2_admin"], e.getRoles(for: "alice", domain: nil))
         XCTAssertEqual([], e.getRoles(for: "bob", domain: nil))
@@ -36,7 +36,7 @@ final class RBACAPITests: XCTestCase {
         //XCTAssertEqual(["alice", "bob", "data2_admin"], e.getAllSubjects().sorted())
         //XCTAssertEqual(["data1_admin", "data2_admin"], e.getAllRoles().sorted())
     }
-    func testCoreApi_for_RoleApi_with_domain() async throws {
+    func testCoreAPI_for_RoleAPI_with_domain() async throws {
         let e = try await makeEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
         XCTAssertEqual(["read", "write"], e.getAllActions().sorted())
         //XCTAssertEqual(["data1", "data2"], e.getAllObjects())

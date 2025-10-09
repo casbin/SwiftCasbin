@@ -13,7 +13,7 @@
 // limitations under the License.
 
 public extension CoreAPI {
-    //MARK:ManagementApi
+    //MARK: ManagementAPI
     func addNamedPolicy(ptype: String, params: [String]) async throws -> Bool {
         try await addPolicyInternal(sec: "p", ptype: ptype, rule: params)
     }
