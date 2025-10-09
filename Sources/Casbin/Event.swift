@@ -61,7 +61,7 @@ public protocol EventEmitter {
     func emit(e:K,d:EventData)
 }
 
-func notifyLoggerAndWatcher<T:CoreApi>(eventData:EventData,e: T) {
+func notifyLoggerAndWatcher<T:CoreAPI>(eventData:EventData,e: T) {
     if e.enableLog {
         e.logger.printMgmtLog(e: eventData, level: e.logger.logLevel)
     }
@@ -70,7 +70,7 @@ func notifyLoggerAndWatcher<T:CoreApi>(eventData:EventData,e: T) {
     }
 }
 
-func clearCache<T:CoreApi>(eventData:EventData,e: T) {
+func clearCache<T:CoreAPI>(eventData:EventData,e: T) {
     e.logger.printMgmtLog(e: eventData)
     e.getCache()?.clear()
 }

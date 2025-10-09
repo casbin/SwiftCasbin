@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extension CoreApi {
+extension CoreAPI {
     //MARK: InternalApi
     func addPolicyInternal(sec: String, ptype: String, rule: [String]) async throws -> Bool {
         let _bool = try await adapter.addPolicy(sec: sec, ptype: ptype, rule: rule)

@@ -339,7 +339,7 @@ extension Enforcer {
     
 }
 
-extension Enforcer: CoreApi {
+extension Enforcer: CoreAPI {
     public func getCache() -> Cache? {
         self.cache
     }
@@ -377,7 +377,7 @@ extension Enforcer: CoreApi {
             do {
                 try self.buildRoleLinks().get()
             } catch {
-                return .failure(error as? CasbinError ?? .RUNTIME_ERROR(error.localizedDescription))
+                return .failure(error as? CasbinError ?? .OtherErrorMessage(error.localizedDescription))
             }
         }
         return registerGFunctions()

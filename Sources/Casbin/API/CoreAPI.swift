@@ -14,7 +14,7 @@
 
 import Logging
 
-public protocol CoreApi: EventEmitter where K == Event {
+public protocol CoreAPI: EventEmitter where K == Event {
     func addFunction(fname: String, f: @escaping ExpressionFunction)
     var model: Model {get}
     var adapter: Adapter {get}

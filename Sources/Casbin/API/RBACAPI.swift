@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public extension CoreApi {
+public extension CoreAPI {
     func addPermission(for user: String, permission: [String]) async throws -> Bool {
         var perm = permission
         perm.insert(user, at: 0)
