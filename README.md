@@ -1,9 +1,17 @@
 SwiftCasbin
 ====
 
+![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange)
+![iOS](https://img.shields.io/badge/iOS-✓-blue)
+![macOS](https://img.shields.io/badge/macOS-✓-blue)
+![tvOS](https://img.shields.io/badge/tvOS-✓-blue)
+![watchOS](https://img.shields.io/badge/watchOS-✓-blue)
+![Linux](https://img.shields.io/badge/Linux-supported-green)
+![Windows](https://img.shields.io/badge/Windows-experimental-lightgrey)
+
 **News**: still worry about how to write the correct Casbin policy? ``Casbin online editor`` is coming to help! Try it at: http://casbin.org/editor/
 
-Casbin is a powerful and efficient open-source access control library for Python projects. It provides support for enforcing authorization based on various [access control models](https://en.wikipedia.org/wiki/Computer_security_model).
+SwiftCasbin is a powerful and efficient access control library for Swift projects. It provides support for enforcing authorization based on various [access control models](https://en.wikipedia.org/wiki/Computer_security_model).
 
 ## All the languages supported by Casbin:
 
