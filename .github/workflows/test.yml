@@ -7,15 +7,14 @@ jobs:
     strategy:
       matrix:
         swiftver:
-          - swift:5.8
+          - swift:6.0
         swiftos:
-          - focal
           - jammy
     container: ${{ format('{0}-{1}', matrix.swiftver, matrix.swiftos) }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Run tests with Thread Sanitizer
         run: swift test --sanitize=thread
