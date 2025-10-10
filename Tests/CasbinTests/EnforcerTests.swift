@@ -1,286 +1,289 @@
 
-import XCTest
+import Testing
 import Casbin
-import NIO
-public let TestsfilePath = #file.components(separatedBy: "EnforcerTests.swift")[0]
+public let TestsfilePath = #filePath.components(separatedBy: "EnforcerTests.swift")[0]
 
-final class EnforcerTests: XCTestCase {
-    var elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    var pool = NIOThreadPool(numberOfThreads: 1)
-    deinit {
-        do {
-            try pool.syncShutdownGracefully()
-            try elg.syncShutdownGracefully()
-        } catch  {
-            
-        }
+@Suite("Enforcer Tests")
+struct EnforcerTests {
+
+    // Helper to assert enforce with actor Enforcer
+    func expect(_ expected: Bool, _ e: Enforcer, _ rvals: any Sendable..., file: StaticString = #filePath, line: UInt = #line) async throws {
+        let arr: [any Sendable] = Array(rvals)
+        let res = try await e.enforce(rvals: arr).get()
+        #expect(expected == res)
     }
-    func makeEnforer(_ mfile:String,_ aFile:String? = nil) throws -> Enforcer {
-        
-        pool.start()
-        let fileIo = NonBlockingFileIO(threadPool: pool)
-        let m = try DefaultModel.from(file:TestsfilePath + mfile , fileIo: fileIo, on: elg.next()).wait()
-        var adapter:Adapter
+
+    func makeEnforcer(_ mfile:String,_ aFile:String? = nil) async throws -> Enforcer {
+        let m = try await DefaultModel.from(file: TestsfilePath + mfile)
+        let adapter: Adapter
         if let aFile = aFile {
-            adapter = FileAdapter.init(filePath: TestsfilePath + aFile, fileIo: fileIo, eventloop: elg.next())
+            adapter = FileAdapter(filePath: TestsfilePath + aFile)
         } else {
-            adapter = MemoryAdapter.init(on: elg.next())
+            adapter = MemoryAdapter()
         }
-        let e = try Enforcer.init(m: m, adapter: adapter)
+        let e = try await Enforcer(m: m, adapter: adapter)
         return e
     }
     
-    func testKeyMatchModelInMemory() throws {
+    @Test("KeyMatch model in memory")
+    func testKeyMatchModelInMemory() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "m", key: "m", value: "r.sub == p.sub && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)")
-        pool.start()
-        let fileIo = NonBlockingFileIO(threadPool: pool)
-        let adapter = FileAdapter.init(filePath: TestsfilePath + "examples/keymatch_policy.csv", fileIo: fileIo, eventloop: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter, .shared(elg))
-        
-        XCTAssertEqual(true, try e.enforce("alice","/alice_data/resource1","GET").get())
-        XCTAssert(try e.enforce("alice","/alice_data/resource1","POST").get())
-        XCTAssert(try e.enforce("alice","/alice_data/resource2","GET").get())
-        XCTAssertEqual(false,try e.enforce("alice","/alice_data/resource2","POST").get())
-        XCTAssertEqual(false,try e.enforce("alice","/bob_data/resource1","GET").get())
-        XCTAssertEqual(false,try e.enforce("alice","/bob_data/resource1","POST").get())
-        XCTAssertEqual(false,try e.enforce("alice","/bob_data/resource2","POST").get())
-        XCTAssertEqual(false,try e.enforce("alice","/bob_data/resource2","GET").get())
-        XCTAssertEqual(false,try e.enforce("bob","/alice_data/resource1","GET").get())
-        XCTAssertEqual(false,try e.enforce("bob","/alice_data/resource1","POST").get())
-        XCTAssertEqual(true,try e.enforce("bob","/alice_data/resource2","GET").get())
-        XCTAssertEqual(false,try e.enforce("bob","/alice_data/resource1","POST").get())
-        
-        XCTAssertEqual(false,try e.enforce("bob","/bob_data/resource1","GET").get())
-        XCTAssertEqual(true,try e.enforce("bob","/bob_data/resource1","POST").get())
-        XCTAssertEqual(true,try e.enforce("bob","/bob_data/resource2","POST").get())
-        XCTAssertEqual(false,try e.enforce("bob","/bob_data/resource2","GET").get())
-        
-        XCTAssertEqual(true,try e.enforce("cathy","/cathy_data","GET").get())
-        XCTAssertEqual(true,try e.enforce("cathy","/cathy_data","POST").get())
-        XCTAssertEqual(false,try e.enforce("cathy","/cathy_data","DELETE").get())
+        let adapter = FileAdapter(filePath: TestsfilePath + "examples/keymatch_policy.csv")
+        let e = try await Enforcer(m: m, adapter: adapter)
+
+        try await expect(true, e, "alice","/alice_data/resource1","GET")
+        try await expect(true, e, "alice","/alice_data/resource1","POST")
+        try await expect(true, e, "alice","/alice_data/resource2","GET")
+        try await expect(false, e, "alice","/alice_data/resource2","POST")
+        try await expect(false, e, "alice","/bob_data/resource1","GET")
+        try await expect(false, e, "alice","/bob_data/resource1","POST")
+        try await expect(false, e, "alice","/bob_data/resource2","POST")
+        try await expect(false, e, "alice","/bob_data/resource2","GET")
+        try await expect(false, e, "bob","/alice_data/resource1","GET")
+        try await expect(false, e, "bob","/alice_data/resource1","POST")
+        try await expect(true, e, "bob","/alice_data/resource2","GET")
+        try await expect(false, e, "bob","/alice_data/resource1","POST")
+
+        try await expect(false, e, "bob","/bob_data/resource1","GET")
+        try await expect(true, e, "bob","/bob_data/resource1","POST")
+        try await expect(true, e, "bob","/bob_data/resource2","POST")
+        try await expect(false, e, "bob","/bob_data/resource2","GET")
+
+        try await expect(true, e, "cathy","/cathy_data","GET")
+        try await expect(true, e, "cathy","/cathy_data","POST")
+        try await expect(false, e, "cathy","/cathy_data","DELETE")
     }
     
-    func testKeyMatchModelInMemoryDeny() throws {
+    @Test("KeyMatch deny in memory")
+    func testKeyMatchModelInMemoryDeny() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "e", key: "e", value: "!some(where (p.eft == deny))")
         _ = m.addDef(sec: "m", key: "m", value: "r.sub == p.sub && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)")
-        pool.start()
-        let fileIo = NonBlockingFileIO(threadPool: pool)
-        let adapter = FileAdapter.init(filePath: TestsfilePath + "examples/keymatch_policy.csv", fileIo: fileIo, eventloop: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter, .shared(elg))
-        
-        XCTAssertEqual(true,try e.enforce("alice","/alice_data/resource2","POST").get())
+        let adapter = FileAdapter(filePath: TestsfilePath + "examples/keymatch_policy.csv")
+        let e = try await Enforcer(m: m, adapter: adapter)
+
+        try await expect(true, e, "alice","/alice_data/resource2","POST")
     }
-    func testRbacModelInMemoryIndeterminate() throws {
+    @Test("RBAC indeterminate in memory")
+    func testRbacModelInMemoryIndeterminate() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "g", key: "g", value: "_,_")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "m", key: "m", value: "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act")
-        let adapter = MemoryAdapter.init(on: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter,.shared(elg))
-       _ = try e.addPermission(for: "alice", permission: ["data1", "invalid"]).wait()
-        XCTAssertEqual(false, try e.enforce("alice", "data1", "read").get())
+        let adapter = MemoryAdapter()
+        let e = try await Enforcer(m: m, adapter: adapter)
+       _ = try await e.addPermission(for: "alice", permission: ["data1", "invalid"])
+        try await expect(false, e, "alice", "data1", "read")
     }
-    func testRbacModelInMemory() throws {
+    @Test("RBAC in memory")
+    func testRbacModelInMemory() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "g", key: "g", value: "_,_")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "m", key: "m", value: "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act")
-        let adapter = MemoryAdapter.init(on: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter,.shared(elg))
-        
-        _ = try e.addPermission(for: "alice", permission: ["data1","read"]).wait()
-        _ = try e.addPermission(for: "bob", permission: ["data2","write"]).wait()
-        _ = try e.addPermission(for: "data2_admin", permission: ["data2","read"]).wait()
-        _ = try e.addPermission(for: "data2_admin", permission: ["data2","write"]).wait()
-        _ = try e.addRole(for: "alice", role: "data2_admin", domain: nil).wait()
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data1","write").get())
-        XCTAssertEqual(true, try e.enforce("alice","data2","read").get())
-        XCTAssertEqual(true, try e.enforce("alice","data2","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","read").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data2","read").get())
-        XCTAssertEqual(true, try e.enforce("bob","data2","write").get())
+        let adapter = MemoryAdapter()
+        let e = try await Enforcer(m: m, adapter: adapter)
+
+        _ = try await e.addPermission(for: "alice", permission: ["data1","read"])
+        _ = try await e.addPermission(for: "bob", permission: ["data2","write"])
+        _ = try await e.addPermission(for: "data2_admin", permission: ["data2","read"])
+        _ = try await e.addPermission(for: "data2_admin", permission: ["data2","write"])
+        _ = try await e.addRole(for: "alice", role: "data2_admin", domain: nil)
+        try await expect(true, e, "alice", "data1", "read")
+        try await expect(false, e, "alice","data1","write")
+        try await expect(true, e, "alice","data2","read")
+        try await expect(true, e, "alice","data2","write")
+        try await expect(false, e, "bob","data1","read")
+        try await expect(false, e, "bob","data1","write")
+        try await expect(false, e, "bob","data2","read")
+        try await expect(true, e, "bob","data2","write")
     }
     
-    func testNotUsedRbacModelInmemory() throws {
+    @Test("RBAC not-used model in memory")
+    func testNotUsedRbacModelInmemory() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "g", key: "g", value: "_,_")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "m", key: "m", value: "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act")
-        let adapter = MemoryAdapter.init(on: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter,.shared(elg))
-        _ = try e.addPermission(for: "alice", permission: ["data1", "read"]).wait()
-        _ = try e.addPermission(for: "bob", permission: ["data2", "write"]).wait()
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","read").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data2","read").get())
-        XCTAssertEqual(true, try e.enforce("bob","data2","write").get())
+        let adapter = MemoryAdapter()
+        let e = try await Enforcer(m: m, adapter: adapter)
+        _ = try await e.addPermission(for: "alice", permission: ["data1", "read"])
+        _ = try await e.addPermission(for: "bob", permission: ["data2", "write"])
+        try await expect(true, e, "alice", "data1", "read")
+        try await expect(false, e, "alice","data1","write")
+        try await expect(false, e, "alice","data2","read")
+        try await expect(false, e, "alice","data2","write")
+        try await expect(false, e, "bob","data1","read")
+        try await expect(false, e, "bob","data1","write")
+        try await expect(false, e, "bob","data2","read")
+        try await expect(true, e, "bob","data2","write")
     }
     
-    func testIpMatchModel() throws {
-        let e = try makeEnforer("examples/ipmatch_model.conf", "examples/ipmatch_policy.csv")
-        XCTAssertEqual(true,try e.enforce("192.168.2.123", "data1", "read").get())
-        XCTAssertEqual(true,try e.enforce("10.0.0.5", "data2", "write").get())
-        XCTAssertEqual(false,try e.enforce("192.168.2.123", "data1", "write").get())
-        XCTAssertEqual(false,try e.enforce("192.168.2.123", "data2", "read").get())
-        XCTAssertEqual(false,try e.enforce("192.168.2.123", "data2", "write").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.123", "data1", "read").get())
-        
-        XCTAssertEqual(false,try e.enforce("192.168.0.123", "data1", "write").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.123", "data2", "read").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.123", "data2", "write").get())
-        XCTAssertEqual(false,try e.enforce("10.0.0.5", "data1", "read").get())
-        
-        XCTAssertEqual(false,try e.enforce("10.0.0.5", "data1", "write").get())
-        XCTAssertEqual(false,try e.enforce("10.0.0.5", "data2", "read").get())
-        
-        XCTAssertEqual(false,try e.enforce("192.168.0.1", "data1", "read").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.1", "data1", "write").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.1", "data2", "read").get())
-        XCTAssertEqual(false,try e.enforce("192.168.0.1", "data2", "write").get())
+    @Test("IP match model")
+    func testIpMatchModel() async throws {
+        let e = try await makeEnforcer("examples/ipmatch_model.conf", "examples/ipmatch_policy.csv")
+        try await expect(true, e, "192.168.2.123", "data1", "read")
+        try await expect(true, e, "10.0.0.5", "data2", "write")
+        try await expect(false, e, "192.168.2.123", "data1", "write")
+        try await expect(false, e, "192.168.2.123", "data2", "read")
+        try await expect(false, e, "192.168.2.123", "data2", "write")
+        try await expect(false, e, "192.168.0.123", "data1", "read")
+        try await expect(false, e, "192.168.0.123", "data1", "write")
+        try await expect(false, e, "192.168.0.123", "data2", "read")
+        try await expect(false, e, "192.168.0.123", "data2", "write")
+        try await expect(false, e, "10.0.0.5", "data1", "read")
+        try await expect(false, e, "10.0.0.5", "data1", "write")
+        try await expect(false, e, "10.0.0.5", "data2", "read")
+        try await expect(false, e, "192.168.0.1", "data1", "read")
+        try await expect(false, e, "192.168.0.1", "data1", "write")
+        try await expect(false, e, "192.168.0.1", "data2", "read")
+        try await expect(false, e, "192.168.0.1", "data2", "write")
     }
     
-    func testEnableAutoSave() throws {
-        let e = try makeEnforer("examples/basic_model.conf", "examples/basic_policy.csv")
-        e.enableAutoSave(auto: false)
-       _ = try e.removePolicy(params: ["alice", "data1", "read"]).wait()
-       _ = try e.loadPolicy().wait()
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","read").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data2","read").get())
-        XCTAssertEqual(true, try e.enforce("bob","data2","write").get())
+    @Test("Enable auto save")
+    func testEnableAutoSave() async throws {
+        let e = try await makeEnforcer("examples/basic_model.conf", "examples/basic_policy.csv")
+        await e.enableAutoSave(auto: false)
+       _ = try await e.removePolicy(params: ["alice", "data1", "read"])
+       _ = try await e.loadPolicy()
+        try await expect(true, e, "alice", "data1", "read")
+        try await expect(false, e, "alice","data1","write")
+        try await expect(false, e, "alice","data2","read")
+        try await expect(false, e, "alice","data2","write")
+        try await expect(false, e, "bob","data1","read")
+        try await expect(false, e, "bob","data1","write")
+        try await expect(false, e, "bob","data2","read")
+        try await expect(true, e, "bob","data2","write")
         
-        e.enableAutoSave(auto: true)
-        _ = try e.removePolicy(params: ["alice", "data1", "read"]).wait()
-        _ = try e.loadPolicy().wait()
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","read").get())
-        XCTAssertEqual(false, try e.enforce("alice","data2","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","read").get())
-        XCTAssertEqual(false, try e.enforce("bob","data1","write").get())
-        XCTAssertEqual(false, try e.enforce("bob","data2","read").get())
-        XCTAssertEqual(true, try e.enforce("bob","data2","write").get())
+        await e.enableAutoSave(auto: true)
+        _ = try await e.removePolicy(params: ["alice", "data1", "read"])
+        _ = try await e.loadPolicy()
+        try await expect(true, e, "alice", "data1", "read")
+        try await expect(false, e, "alice","data1","write")
+        try await expect(false, e, "alice","data2","read")
+        try await expect(false, e, "alice","data2","write")
+        try await expect(false, e, "bob","data1","read")
+        try await expect(false, e, "bob","data1","write")
+        try await expect(false, e, "bob","data2","read")
+        try await expect(true, e, "bob","data2","write")
     }
     
-    func testRoleLinks() throws {
-        let e = try makeEnforer("examples/rbac_model.conf")
-        e.enableAutoBuildRoleLinks(auto: false)
-        _ = try e.buildRoleLinks().get()
-        XCTAssertEqual(false, try e.enforce("user501", "data9", "read").get())
+    @Test("Role links")
+    func testRoleLinks() async throws {
+        let e = try await makeEnforcer("examples/rbac_model.conf")
+        await e.enableAutoBuildRoleLinks(auto: false)
+        _ = try await e.buildRoleLinks().get()
+        try await expect(false, e, "user501", "data9", "read")
     }
     
-    func testGetAndSetModel() throws {
-        let e = try makeEnforer("examples/basic_model.conf", "examples/basic_policy.csv")
-        XCTAssertEqual(false, try e.enforce("root", "data1", "read").get())
-        let e2 = try makeEnforer("examples/basic_with_root_model.conf", "examples/basic_policy.csv")
-        _ = try e.setModel(e2.model).wait()
-        XCTAssertEqual(true, try e.enforce("root", "data1", "read").get())
+    @Test("Get and set model")
+    func testGetAndSetModel() async throws {
+        let e = try await makeEnforcer("examples/basic_model.conf", "examples/basic_policy.csv")
+        try await expect(false, e, "root", "data1", "read")
+        let e2 = try await makeEnforcer("examples/basic_with_root_model.conf", "examples/basic_policy.csv")
+        _ = try await e.setModel(e2.model)
+        try await expect(true, e, "root", "data1", "read")
     }
     
-    func testGetAndSetAdapterInmem() throws {
-        let e = try makeEnforer("examples/basic_model.conf", "examples/basic_policy.csv")
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice", "data1", "write").get())
+    @Test("Get and set adapter in-memory")
+    func testGetAndSetAdapterInmem() async throws {
+        let e = try await makeEnforcer("examples/basic_model.conf", "examples/basic_policy.csv")
+        try await expect(true, e, "alice", "data1", "read")
+        try await expect(false, e, "alice", "data1", "write")
         
-        let e2 = try makeEnforer("examples/basic_model.conf", "examples/basic_inverse_policy.csv")
-         _ = try e.setAdapter(e2.adapter).wait()
-        XCTAssertEqual(false, try e.enforce("alice", "data1", "read").get())
-        XCTAssertEqual(true, try e.enforce("alice", "data1", "write").get())
+        let e2 = try await makeEnforcer("examples/basic_model.conf", "examples/basic_inverse_policy.csv")
+        _ = try await e.setAdapter(e2.adapter)
+        try await expect(false, e, "alice", "data1", "read")
+        try await expect(true, e, "alice", "data1", "write")
     }
     
-    func testKeymatchCustomModel() throws {
-        let e = try makeEnforer("examples/keymatch_custom_model.conf", "examples/keymatch_policy.csv")
+    @Test("KeyMatch custom model")
+    func testKeymatchCustomModel() async throws {
+        let e = try await makeEnforcer("examples/keymatch_custom_model.conf", "examples/keymatch_policy.csv")
         
-        e.addFunction(fname: "keyMatchCustom", f: Util.toExpressionFunction(name: "keyMatchCustom", function: { s1, s2 in
+        await e.addFunction(fname: "keyMatchCustom", f: Util.toExpressionFunction(name: "keyMatchCustom", function: { s1, s2 in
             return Util.keyMatch(s1, s2)
         }))
-        XCTAssertEqual(true, try e.enforce("alice", "/alice_data/123", "GET").get())
-        XCTAssertEqual(true, try e.enforce("alice", "/alice_data/resource1", "POST").get())
-        XCTAssertEqual(true, try e.enforce("bob", "/alice_data/resource2", "GET").get())
-        XCTAssertEqual(true, try e.enforce("bob", "/bob_data/resource1", "POST").get())
-        XCTAssertEqual(true, try e.enforce("cathy", "/cathy_data", "GET").get())
-        XCTAssertEqual(true, try e.enforce("cathy", "/cathy_data", "POST").get())
+        try await expect(true, e, "alice", "/alice_data/123", "GET")
+        try await expect(true, e, "alice", "/alice_data/resource1", "POST")
+        try await expect(true, e, "bob", "/alice_data/resource2", "GET")
+        try await expect(true, e, "bob", "/bob_data/resource1", "POST")
+        try await expect(true, e, "cathy", "/cathy_data", "GET")
+        try await expect(true, e, "cathy", "/cathy_data", "POST")
     }
-    func testFilteredFileAdater() throws {
-        let e = try makeEnforer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+    @Test("Filtered file adapter")
+    func testFilteredFileAdater() async throws {
+        let e = try await makeEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
         let filter = Filter.init(p: ["","domain1"], g: ["","","domain1"])
-       _ = try e.loadFilterdPolicy(filter).wait()
+       _ = try await e.loadFilterdPolicy(filter)
         
-        XCTAssertEqual(true, try e.enforce("alice", "domain1", "data1", "read").get())
-        XCTAssertEqual(true, try e.enforce("alice", "domain1", "data1", "write").get())
-        XCTAssertEqual(false, try e.enforce("alice", "domain1", "data2", "read").get())
-        XCTAssertEqual(false, try e.enforce("alice", "domain1", "data2", "write").get())
-        XCTAssertEqual(false, try e.enforce("bob", "domain2", "data2", "read").get())
-        XCTAssertEqual(false, try e.enforce("bob", "domain2", "data2", "write").get())
+        try await expect(true, e, "alice", "domain1", "data1", "read")
+        try await expect(true, e, "alice", "domain1", "data1", "write")
+        try await expect(false, e, "alice", "domain1", "data2", "read")
+        try await expect(false, e, "alice", "domain1", "data2", "write")
+        try await expect(false, e, "bob", "domain2", "data2", "read")
+        try await expect(false, e, "bob", "domain2", "data2", "write")
     }
-    func testSetRoleManager() throws {
-        let e = try makeEnforer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+    @Test("Set role manager")
+    func testSetRoleManager() async throws {
+        let e = try await makeEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
         let newRm = DefaultRoleManager.init(maxHierarchyLevel: 10)
-        try e.setRoleManager(rm: newRm).get()
-        XCTAssertEqual(true, try e.enforce("alice", "domain1", "data1", "read").get())
-        XCTAssertEqual(true, try e.enforce("alice", "domain1", "data1", "write").get())
-        XCTAssertEqual(true, try e.enforce("bob", "domain2", "data2", "read").get())
-        XCTAssertEqual(true, try e.enforce("bob", "domain2", "data2", "write").get())
+        try await e.setRoleManager(rm: newRm).get()
+        try await expect(true, e, "alice", "domain1", "data1", "read")
+        try await expect(true, e, "alice", "domain1", "data1", "write")
+        try await expect(true, e, "bob", "domain2", "data2", "read")
+        try await expect(true, e, "bob", "domain2", "data2", "write")
     }
     struct Person {
        let name:String
         let age:Int
     }
-    func testPolicyAbac1() throws  {
+    @Test("Policy ABAC 1")
+    func testPolicyAbac1() async throws  {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub_rule, obj, act")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "m", key: "m", value: "eval(p.sub_rule) && r.obj == p.obj && r.act == p.act")
-        let adapter = MemoryAdapter.init(on: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter,.shared(elg))
-        _ = try e.addPolicy(params: ["r.sub.age > 18", "/data1", "read"]).wait()
-        
-        XCTAssertEqual(false, try e.enforce(Person.init(name: "alice", age: 16),  "/data1", "read").get())
-        XCTAssertEqual(true, try e.enforce(Person.init(name: "bob", age: 19),  "/data1", "read").get())
-        
+        let adapter = MemoryAdapter()
+        let e = try await Enforcer(m: m, adapter: adapter)
+        _ = try await e.addPolicy(params: ["r.sub.age > 18", "/data1", "read"])
+
+        try await expect(false, e, Person(name: "alice", age: 16),  "/data1", "read")
+        try await expect(true, e, Person(name: "bob", age: 19),  "/data1", "read")
+
     }
     struct Post {
         let author:String
     }
-    func testPolicyAbac2() throws {
+    @Test("Policy ABAC 2")
+    func testPolicyAbac2() async throws {
         let m = DefaultModel()
         _ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
         _ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
         _ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
         _ = m.addDef(sec: "g", key: "g", value: "_,_")
         _ = m.addDef(sec: "m", key: "m", value: "(g(r.sub, p.sub) || eval(p.sub) == true) && r.act == p.act")
-        let adapter = MemoryAdapter.init(on: elg.next())
-        let e = try Enforcer.init(m: m, adapter: adapter,.shared(elg))
-        _ = try e.addPolicy(params: ["admin", "post", "write"]).wait()
-        _ = try e.addPolicy(params: ["r.sub == r.obj.author", "post", "write"]).wait()
-        _ = try e.addGroupingPolicy(params: ["alice", "admin"]).wait()
-        XCTAssertEqual(true, try e.enforce("alice",Post.init(author: "bob"),"write").get())
-        XCTAssertEqual(true, try e.enforce("bob",Post.init(author: "bob"),"write").get())
-        
+        let adapter = MemoryAdapter()
+        let e = try await Enforcer(m: m, adapter: adapter)
+        _ = try await e.addPolicy(params: ["admin", "post", "write"])
+        _ = try await e.addPolicy(params: ["r.sub == r.obj.author", "post", "write"])
+        _ = try await e.addGroupingPolicy(params: ["alice", "admin"])
+        try await expect(true, e, "alice",Post(author: "bob"),"write")
+        try await expect(true, e, "bob",Post(author: "bob"),"write")
+
     }
     
 }

@@ -17,21 +17,21 @@ import Foundation
 public protocol RoleManager {
     
     /// clears all stored data and resets the role manager to the initial state.
-    mutating func clear()
+    func clear()
     
     /// adds the inheritance link between two roles
     /// - Parameters:
     ///   - name1: role
     ///   - name2: role
     ///   - domain:a prefix to the roles.
-    mutating func addLink(name1: String,name2: String,domain: String?)
+    func addLink(name1: String,name2: String,domain: String?)
     
     /// deletes the inheritance link between two roles.
     /// - Parameters:
     ///   - name1: role
     ///   - name2: role
     ///   - domain: a prefix to the roles.
-    mutating func deleteLink(name1: String,name2: String,domain: String?) -> CasbinResult<Void>
+    func deleteLink(name1: String,name2: String,domain: String?) -> CasbinResult<Void>
     
     
     /// determines whether a link exists between two roles.

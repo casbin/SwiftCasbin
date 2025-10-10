@@ -13,57 +13,54 @@
 // limitations under the License.
 
 import Logging
-import Expression
-import NIO
+@preconcurrency import Expression
 import Foundation
-import NIOTransportServices
-public typealias EventCallback = (EventData,Enforcer) -> Void
 
-public enum EventLoopGroupProvider {
-    case shared(EventLoopGroup)
-    case createNew
-}
-public final class Enforcer {
-    public var storage: Storage
+/// A callback signature for receiving asynchronous policy and cache events.
+public typealias EventCallback = @Sendable (EventData, Enforcer) async -> Void
+
+/// The main entry point for authorization decisions.
+///
+/// Enforcer is an actor that evaluates requests against a loaded model and policy.
+/// Create an instance with a ``Model`` and an ``Adapter`` and then call
+/// ``enforce(_:)`` to authorize requests. Most APIs are `async` and accept
+/// `Sendable` values to be concurrency-friendly.
+public actor Enforcer {
     public var logger: Logger
-    public var model:Model
+    public var model: Model
     public var adapter: Adapter
-    public let eventLoopGroup:EventLoopGroup
-    public let eventLoopGroupProvider: EventLoopGroupProvider
-    
+    public var watcher: Watcher?
+    public var roleManager: RoleManager
+    public var eft: Effector
+    public var cache: Cache?
+
+    var fm: FunctionMap
     var symbols: [AnyExpression.Symbol: AnyExpression.SymbolEvaluator] = [:]
-    var enabled:Bool = true
-    var logEnabled:Bool = true
+    var enabled: Bool = true
+    var logEnabled: Bool = true
     var autoSave: Bool = true
-    var autoBuildRoleLinks:Bool = true
-    var autoNotifyWatcher:Bool = true
-    var events:[Event:[EventCallback]] = [:]
-    
-    public init (m:Model,adapter:Adapter, _ eventLoopGroupProvider: EventLoopGroupProvider = .createNew) throws {
-        self.storage = .init()
+    var autoBuildRoleLinks: Bool = true
+    var autoNotifyWatcher: Bool = true
+    var events: [Event:[EventCallback]] = [:]
+
+    /// Initializes a new enforcer.
+    /// - Parameters:
+    ///   - m: The loaded authorization ``Model``.
+    ///   - adapter: The ``Adapter`` used to load and persist policy.
+    public init(m: Model, adapter: Adapter) async throws {
         self.model = m
         self.adapter = adapter
-        self.eventLoopGroupProvider = eventLoopGroupProvider
-        switch eventLoopGroupProvider {
-        case .shared(let group):
-            self.eventLoopGroup = group
-        case .createNew:
-            #if canImport(Network)
-            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
-                self.eventLoopGroup = NIOTSEventLoopGroup()
-            } else {
-                self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-            }
-            #else
-            self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-            #endif
-        }
         self.logger = .init(label: "swift.casbin")
-        self.core.initialize()
-        self.fm.functions.forEach { (key: String, value: @escaping ExpressionFunction) in
+        self.roleManager = DefaultRoleManager(maxHierarchyLevel: 10)
+        self.eft = DefaultEffector()
+        self.watcher = nil
+        self.fm = FunctionMap.default()
+        self.cache = nil
+
+        for (key, value) in self.fm.functions {
             symbols[.function(key, arity: .atLeast(2))] = value
         }
-        
+
         symbols[.infix("in")] = { args in
             guard let left = args[0] as? String,
                   let right = args[1] as? Array<String> else {
@@ -71,40 +68,50 @@ public final class Enforcer {
             }
             return right.contains(left)
         }
-        
-        try registerGFunctions().get()
+
+        _ = try registerGFunctions().get()
         if self.cache != nil {
-            self.on(e: Event.ClearCache, f: clearCache)
+            let cb: EventCallback = { data, ef in await Casbin.clearCache(eventData: data, e: ef) }
+            var fs = self.events.getOrInsert(key: .ClearCache, with: [])
+            fs.append(cb)
+            self.events.updateValue(fs, forKey: .ClearCache)
         }
-        self.on(e: .PolicyChange, f: notifyLoggerAndWatcher)
-        try loadPolicy().wait()
+        let mgmt: EventCallback = { data, ef in await Casbin.notifyLoggerAndWatcher(eventData: data, e: ef) }
+        var ps = self.events.getOrInsert(key: .PolicyChange, with: [])
+        ps.append(mgmt)
+        self.events.updateValue(ps, forKey: .PolicyChange)
+        try await loadPolicy()
     }
-    
 }
 
-extension Enforcer: EventEmitter {
-    
-    public func on(e: Event, f: @escaping(EventData, Enforcer) -> Void) {
+extension Enforcer {
+    /// Registers an async event listener.
+    public func on(e: Event, f: @escaping @Sendable (EventData, Enforcer) async -> Void) {
         var fs = self.events.getOrInsert(key: e, with: [])
         fs.append(f)
         events.updateValue(fs, forKey: e)
     }
-    
+    /// Removes all listeners for a given event type.
     public func off(e: Event) {
         events.removeValue(forKey: e)
     }
-    
-    public func emit(e: Event, d: EventData) {
+    /// Emits an event to all listeners.
+    public func emit(e: Event, d: EventData) async {
         if let cbs = events[e] {
-            cbs.forEach {
-                $0(d,self)
-            }
+            for cb in cbs { await cb(d, self) }
         }
     }
-    
 }
 
 extension Enforcer {
+    // Helpers used by event callbacks (class context)
+    func notifyLoggerAndWatcher(eventData: EventData) {
+        if enableLog {
+            logger.printMgmtLog(e: eventData, level: logger.logLevel)
+        }
+        if let w = watcher { w.update(eventData: eventData) }
+    }
+    func clearCache() { cache?.clear() }
     private func getAst(key:String) -> CasbinResult<Assertion> {
         var e1 = CasbinError.ModelError.Other("un match key:\(key)")
         var e2 = e1
@@ -136,33 +143,32 @@ extension Enforcer {
         }
     }
     func registerGFunctions() -> CasbinResult<()> {
-        if let astMap = model.getModel()["g"] {
-            for (key, ast) in astMap {
-                let count = ast.value.filter { $0  == "_" }.count
-                if count == 2 {
-                    self.symbols[.function(key, arity: 2)] = { args in
-                        guard let name1 = args[0] as? String,let name2 = args[1] as? String else {
-                            throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
-                        }
-                        return self.roleManager.hasLink(name1: name1, name2: name2, domain: nil)
+        guard let astMap = model.getModel()["g"] else { return .success(()) }
+        for (key, ast) in astMap {
+            let count = ast.value.filter { $0  == "_" }.count
+            if count == 2 {
+                self.symbols[.function(key, arity: 2)] = { args in
+                    guard let name1 = args[0] as? String, let name2 = args[1] as? String else {
+                        throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
                     }
-                } else if count == 3 {
-                    self.symbols[.function(key, arity: 3)] = { args in
-                        guard let name1 = args[0] as? String,
-                              let name2 = args[1] as? String,
-                              let domain = args[2] as? String else {
-                            throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
-                        }
-                        return self.roleManager.hasLink(name1: name1, name2: name2, domain: domain)
-                    }
-                } else {
-                    return .failure(CasbinError.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
+                    return self.roleManager.hasLink(name1: name1, name2: name2, domain: nil)
                 }
+            } else if count == 3 {
+                self.symbols[.function(key, arity: 3)] = { args in
+                    guard let name1 = args[0] as? String,
+                          let name2 = args[1] as? String,
+                          let domain = args[2] as? String else {
+                        throw CasbinError.MATCH_ERROR(.MatchFuntionArgsNotString)
+                    }
+                    return self.roleManager.hasLink(name1: name1, name2: name2, domain: domain)
+                }
+            } else {
+                return .failure(CasbinError.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
             }
         }
         return .success(())
     }
-    private func makeExpression(scope:[String:Any],parsed:ParsedExpression) -> AnyExpression {
+    nonisolated private func makeExpression(scope:[String:Any], parsed:ParsedExpression, symbolsSnapshot: [AnyExpression.Symbol: AnyExpression.SymbolEvaluator]) -> AnyExpression {
        return .init(parsed, impureSymbols: { symbol  in
              if case let .function(s, arity: _) = symbol,s == "eval" {
                 return { [self] args -> Any? in
@@ -171,7 +177,7 @@ extension Enforcer {
                     }
                     let expString = Util.escapeAssertion(ex)
                     let exp = Expression.parse(expString)
-                    return try? makeExpression(scope: scope, parsed: exp).evaluate()
+                    return try? makeExpression(scope: scope, parsed: exp, symbolsSnapshot: symbolsSnapshot).evaluate()
                 }
             }
             if case let .variable(s) = symbol,!(s.hasPrefix("\"") && s.hasSuffix("\"")) {
@@ -186,16 +192,16 @@ extension Enforcer {
                 }
                 return {_ in scope[sp[0]] as Any}
             }
-            if case .function = symbol, symbols.keys.contains(symbol) {
-                return symbols[symbol]
+            if case .function = symbol, symbolsSnapshot.keys.contains(symbol) {
+                return symbolsSnapshot[symbol]
             }
             if case .infix(let s) = symbol,s == "in" {
-                return symbols[symbol]
+                return symbolsSnapshot[symbol]
             }
             return nil
         })
     }
-    private func getMirrorValue(label:String,value:Any) -> Any? {
+    nonisolated private func getMirrorValue(label:String,value:Any) -> Any? {
         let mirror = Mirror.init(reflecting: value)
         let children = mirror.children
         if children.isEmpty {
@@ -220,7 +226,7 @@ extension Enforcer {
         return nil
     }
     
-    func privateEnforce(rvals:[Any]) -> Result<(Bool,[Int]?),Error> {
+    func privateEnforce(rvals:[any Sendable]) -> Result<(Bool,[Int]?),Error> {
         if !self.enabled {
             return .success((true, nil))
         }
@@ -240,6 +246,7 @@ extension Enforcer {
             }
          
             let ex = Expression.parse(Util.escapeEval(mAst.value))
+            let symbolsSnapshot = self.symbols
             let policies = pAst.policy
             let (policyLen) = (policies.count)
             var eftStream = eft.newStream(expr: eAst.value, cap: max(policyLen, 1))
@@ -247,7 +254,7 @@ extension Enforcer {
                 pAst.tokens.forEach {
                     scope[$0] = ""
                 }
-                let eval = makeExpression(scope: scope, parsed: ex)
+                let eval = makeExpression(scope: scope, parsed: ex, symbolsSnapshot: symbolsSnapshot)
                 let evalResult:Bool = try eval.evaluate()
                 let eft = evalResult ? Effect.Allow : .Indeterminate
                 _ = eftStream.pushEffect(eft: eft)
@@ -260,7 +267,7 @@ extension Enforcer {
                 pAst.tokens.enumerated().forEach { (index,token) in
                     scope[token] = pvals[index]
                 }
-                let eval = makeExpression(scope: scope, parsed: ex)
+                let eval = makeExpression(scope: scope, parsed: ex, symbolsSnapshot: symbolsSnapshot)
                 let evalResult:Bool = try eval.evaluate()
 
                 let eft:Effect = { () -> Effect in
@@ -296,7 +303,7 @@ extension Enforcer {
         }
         
     }
-    public func enforce(rvals:[Any]) -> Result<Bool,Error> {
+    public func enforce(rvals:[any Sendable]) -> Result<Bool,Error> {
         do {
             var _authorized:Bool
             var _cached: Bool = false
@@ -340,6 +347,7 @@ extension Enforcer {
         }
     }
     
+    /// Re-builds role links from the current model and policy.
     public func buildRoleLinks() -> CasbinResult<Void> {
         roleManager.clear()
         return model.buildRolelinks(rm: roleManager)
@@ -349,16 +357,11 @@ extension Enforcer {
         model.buildIncrementalRoleLinks(rm: roleManager, eventData: eventData)
     }
     
-    public func loadPolicy() -> EventLoopFuture<Void> {
+    /// Loads policy from the adapter, optionally building role links.
+    public func loadPolicy() async throws {
         model.clearPolicy()
-        return adapter.loadPolicy(m: model).flatMap {
-            if self.autoBuildRoleLinks {
-                if case .failure(let e) = self.buildRoleLinks() {
-                   return self.eventLoopGroup.next().makeFailedFuture(e)
-                }
-            }
-            return self.eventLoopGroup.next().makeSucceededVoidFuture()
-        }
+        try await adapter.loadPolicy(m: model)
+        if self.autoBuildRoleLinks { try self.buildRoleLinks().get() }
     }
     public var isFiltered:Bool {
         return adapter.isFiltered
@@ -366,15 +369,13 @@ extension Enforcer {
     
 }
 
-extension Enforcer: CoreApi {
-    public func getCache() -> Cache? {
-        self.cache
-    }
+extension Enforcer {
+    /// Returns the in-memory result cache if enabled.
+    public func getCache() -> Cache? { self.cache }
+    /// Updates the cache capacity if caching is enabled.
+    public func setCapacity(_ c: Int) { self.cache?.setCapacity(c) }
     
-    public func setCapacity(_ c: Int) {
-        self.cache?.setCapacity(c)
-    }
-    
+    /// Enables or disables internal status logging.
     public var enableLog: Bool {
         get {
             self.logEnabled
@@ -384,86 +385,90 @@ extension Enforcer: CoreApi {
         }
     }
     
-    public func enforce(_ rvals: Any...) -> Result<Bool,Error> {
+    /// Evaluates a request against the model and policy.
+    /// - Parameter rvals: Request values (e.g. subject, object, action).
+    /// - Returns: `true` when authorized; `false` otherwise.
+    public func enforce(_ rvals: any Sendable...) -> Result<Bool,Error> {
         enforce(rvals: rvals)
     }
     
+    /// Registers a custom matcher function usable from the model.
     public func addFunction(fname: String, f: @escaping ExpressionFunction) {
         fm.addFuntion(name: fname, function: f)
         symbols[.function(fname, arity: .atLeast(2))] = f
     }
     
     
+    /// Returns the current role manager.
     public func getRoleManager() -> RoleManager {
         roleManager
     }
     
+    /// Sets the role manager and (optionally) rebuilds links.
     public func setRoleManager(rm:RoleManager) -> CasbinResult<Void> {
         self.roleManager = rm
         if autoBuildRoleLinks {
-            do {
-                try self.buildRoleLinks().get()
-            } catch  {
-                return .failure(error as! CasbinError)
+            switch self.buildRoleLinks() {
+            case .success:
+                break
+            case .failure(let e):
+                return .failure(e)
             }
         }
         return registerGFunctions()
     }
     
-    public func setModel(_ model: Model) -> EventLoopFuture<Void> {
+    /// Replaces the current model and reloads policy.
+    public func setModel(_ model: Model) async throws {
         self.model = model
-        return loadPolicy()
+        try await loadPolicy()
     }
-    
-    public func setAdapter(_ adapter: Adapter) -> EventLoopFuture<Void> {
+
+    /// Replaces the current adapter and reloads policy.
+    public func setAdapter(_ adapter: Adapter) async throws {
         self.adapter = adapter
-        return loadPolicy()
+        try await loadPolicy()
     }
-    
-    public func loadFilterdPolicy(_ f: Filter) -> EventLoopFuture<Void> {
+
+    /// Loads a filtered subset of policy.
+    public func loadFilterdPolicy(_ f: Filter) async throws {
         model.clearPolicy()
-        return adapter.loadFilteredPolicy(m: model, f: f).flatMap {
-            if self.autoBuildRoleLinks {
-                if case .failure(let e) = self.buildRoleLinks() {
-                   return self.eventLoopGroup.next().makeFailedFuture(e)
-                }
-            }
-            return self.eventLoopGroup.next().makeSucceededVoidFuture()
-        }
+        try await adapter.loadFilteredPolicy(m: model, f: f)
+        if self.autoBuildRoleLinks { try self.buildRoleLinks().get() }
     }
     
+    /// Indicates whether enforcement is enabled.
     public var isEnabled: Bool {
         self.enabled
     }
     
-    public func savePolicy() -> EventLoopFuture<Void> {
-        if isFiltered {
-            eventLoopGroup.next().preconditionInEventLoop(file: #file, line: #line)
-        }
-        return adapter.savePolicy(m: model).map { _ in
-            var policies = self.getAllPolicy()
-            let gpolicies = self.getAllGroupingPolicy()
-            policies.append(contentsOf: gpolicies)
-            self.emit(e: Event.PolicyChange, d: .SavePolicy(policies))
-        }
+    /// Persists the current policy using the adapter and emits a change event.
+    public func savePolicy() async throws {
+        try await adapter.savePolicy(m: model)
+        var policies = self.getAllPolicy()
+        let gpolicies = self.getAllGroupingPolicy()
+        policies.append(contentsOf: gpolicies)
+        await self.emit(e: Event.PolicyChange, d: .SavePolicy(policies))
     }
-    
-    public func clearPolicy() -> EventLoopFuture<Void> {
+
+    /// Clears all policy. If `autoSave` is enabled, removes it from the adapter as well.
+    public func clearPolicy() async throws {
         if autoSave {
-            return adapter.clearPolicy().map { [self] _ in
-                model.clearPolicy()
-                emit(e: .PolicyChange, d: .ClearCache)
-            }
+            try await adapter.clearPolicy()
+            model.clearPolicy()
+            await emit(e: .PolicyChange, d: .ClearCache)
+        } else {
+            model.clearPolicy()
+            await emit(e: .PolicyChange, d: .ClearCache)
         }
-        model.clearPolicy()
-        emit(e: .PolicyChange, d: .ClearCache)
-        return eventLoopGroup.next().makeSucceededVoidFuture()
     }
     
+    /// Enables or disables automatic persistence when policy changes.
     public func enableAutoSave(auto: Bool) {
         self.autoSave = auto
     }
     
+    /// Enables or disables enforcement.
     public func enableEnforce(enabled: Bool) {
         self.enabled = enabled
         if logEnabled {
@@ -472,25 +477,20 @@ extension Enforcer: CoreApi {
         
     }
     
+    /// Enables or disables automatic role-link rebuilding after changes.
     public func enableAutoBuildRoleLinks(auto: Bool) {
         autoBuildRoleLinks = auto
     }
     
+    /// Enables or disables automatic watcher notifications after changes.
     public func enableAutoNotifyWatcher(auto: Bool) {
         autoNotifyWatcher = auto
     }
     
-    public func hasAutoSaveEnable() -> Bool {
-        autoSave
-    }
-    
-    public func hasAutoNotifyWatcherEnabled() -> Bool {
-        autoNotifyWatcher
-    }
-    
-    public func hasAutoBuildRoleLinksEnabled() -> Bool {
-        autoBuildRoleLinks
-    }
+    /// Returns whether auto-save is enabled.
+    public func hasAutoSaveEnable() -> Bool { autoSave }
+    /// Returns whether auto-notify-watcher is enabled.
+    public func hasAutoNotifyWatcherEnabled() -> Bool { autoNotifyWatcher }
+    /// Returns whether auto-build-role-links is enabled.
+    public func hasAutoBuildRoleLinksEnabled() -> Bool { autoBuildRoleLinks }
 }
-
-

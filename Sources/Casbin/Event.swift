@@ -14,12 +14,14 @@
 
 import Foundation
 
-public enum Event:EventKey {
+/// Event types emitted by ``Enforcer``.
+public enum Event: EventKey, Sendable {
     case PolicyChange
     case ClearCache
 }
 
-public enum EventData: CustomStringConvertible {
+/// Payload for an ``Event`` emitted by ``Enforcer``.
+public enum EventData: CustomStringConvertible, Sendable {
     public var description: String {
         switch self {
        
@@ -54,23 +56,11 @@ public enum EventData: CustomStringConvertible {
 
 public protocol EventKey:Hashable & Equatable {}
 
-public protocol EventEmitter {
-    associatedtype K:EventKey
-    func on(e:K,f:@escaping (EventData,Self) -> Void)
-    func off(e:K)
-    func emit(e:K,d:EventData)
+
+public func notifyLoggerAndWatcher(eventData: EventData, e: Enforcer) async {
+    await e.notifyLoggerAndWatcher(eventData: eventData)
 }
 
-func notifyLoggerAndWatcher<T:CoreApi>(eventData:EventData,e: T) {
-    if e.enableLog {
-        e.logger.printMgmtLog(e: eventData, level: e.logger.logLevel)
-    }
-    if let w = e.watcher {
-        w.update(eventData: eventData)
-    }
-}
-
-func clearCache<T:CoreApi>(eventData:EventData,e: T) {
-    e.logger.printMgmtLog(e: eventData)
-    e.getCache()?.clear()
+public func clearCache(eventData: EventData, e: Enforcer) async {
+    await e.clearCache()
 }

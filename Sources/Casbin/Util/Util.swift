@@ -15,10 +15,11 @@
 import Expression
 import Regex
 
-public typealias MatchFunction = (String,String) -> Bool
-public typealias ExpressionFunction = ([Any]) throws -> Bool
+public typealias MatchFunction = @Sendable (String,String) -> Bool
+public typealias ExpressionFunction = @Sendable ([Any]) throws -> Bool
 
 
+/// Utility helpers for parsing policies and providing common matcher functions.
 public struct Util {
     
     static func validateVariadicArgs(expentedLen: Int,args: [Any]) -> CasbinError? {
@@ -33,11 +34,13 @@ public struct Util {
         return nil
     }
     
+    /// Rewrites assertion variables like `r.sub` into `r_sub` for Expression.
     public static func escapeAssertion(_ s:String) -> String {
         var _s = s
         _s.replaceAll(matching: #"\b(r\d*|p\d*)\."#, with: "$1_")
         return _s
     }
+    /// Strips a trailing `#` comment from a line.
     public static func removeComment(_ s: String) -> String {
         var _s:String {
             if let i =  s.firstIndex(of: "#") {
@@ -49,6 +52,7 @@ public struct Util {
         return _s.trimmingCharacters(in: .whitespaces)
     }
     
+    /// Normalizes `eval()` occurrences for Expression parser.
     public static func escapeEval(_ m:String) -> String {
         let re = Regex.init(#"\beval\(([^)]*)\)"#)
         var _m = m
@@ -56,6 +60,7 @@ public struct Util {
         return _m
     }
     
+    /// Parses a CSV policy line into tokens.
     public static func parseCsvLine(line: String) -> [String]? {
         let line = line.trimmingCharacters(in: .whitespaces)
         if line.isEmpty || line.starts(with: "#") {
@@ -81,6 +86,7 @@ public struct Util {
             return res
         }
     }
+    /// Loads a single policy line into the model (unfiltered).
     public static func loadPolicyLine(line:String,m:Model) {
         if line.isEmpty || line.starts(with: "#") {
             return
@@ -88,14 +94,11 @@ public struct Util {
         if let tokens = Util.parseCsvLine(line: line),!tokens.isEmpty {
             let key = tokens[0]
             if let sec = key.first {
-                if let item = m.getModel()[String(sec)] {
-                    if let ast = item[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
-                }
+                _ = m.addPolicy(sec: String(sec), ptype: key, rule: Array(tokens.dropFirst()))
             }
         }
     }
+   /// Loads a policy line with filter rules applied.
    public static func loadFilteredPolicyLine(line:String,m:Model,f:Filter) -> Bool {
         if line.isEmpty || line.starts(with: "#") {
             return false
@@ -120,9 +123,7 @@ public struct Util {
                     }
                 }
                 if !isFiltered {
-                    if let ast = m.getModel()[sec]?[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
+                    _ = m.addPolicy(sec: sec, ptype: key, rule: Array(tokens.dropFirst()))
                 }
                 
             }
@@ -136,5 +137,3 @@ public struct Util {
     
     
 }
-
-

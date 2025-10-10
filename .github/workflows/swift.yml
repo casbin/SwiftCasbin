@@ -1,0 +1,37 @@
+name: Swift CI (Swift 6)
+
+on:
+  push:
+    branches: [ master, feat/swift-6-concurrency ]
+  pull_request:
+    branches: [ master, feat/swift-6-concurrency ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Swift ${{ matrix.swift }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        swift: ['6.0.3']
+        # Note: Windows is not supported due to lack of Synchronization module support
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Swift
+      uses: SwiftyLab/setup-swift@latest
+      with:
+        swift-version: ${{ matrix.swift }}
+
+    - name: Swift Version
+      run: swift --version
+
+    - name: Build
+      run: swift build -v
+
+    - name: Run tests
+      run: swift test -v

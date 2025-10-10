@@ -1,44 +1,31 @@
-
-import XCTest
+import Testing
 import Casbin
-import NIO
 
-final class ConfigTests: XCTestCase {
-    var elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    var pool = NIOThreadPool(numberOfThreads: 1)
-    deinit {
-        do {
-            try pool.syncShutdownGracefully()
-            try elg.syncShutdownGracefully()
-        } catch  {
-        }
-    }
+@Suite("Config Tests")
+struct ConfigTests {
 
-    func testGet() throws {
-        let filePath = #file.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
-        pool.start()
-        let fileIo = NonBlockingFileIO(threadPool: pool)
-        var config = try Config.from(file: filePath, fileIo: fileIo, on: elg.next())
-            .wait()
+    @Test("Load config from file")
+    func testGet() async throws {
+        let filePath = #filePath.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
+        var config = try await Config.from(file: filePath)
 
-        XCTAssertEqual(true, config.getBool(key: "debug"))
-        XCTAssertEqual(64, config.getInt(key: "math::math.i64"))
-        XCTAssertEqual(64.1, config.getFloat(key: "math::math.f64"))
-        XCTAssertEqual("10.0.0.1", config.get(key: "mysql::mysql.master.host"))
+        #expect(config.getBool(key: "debug") == true)
+        #expect(config.getInt(key: "math::math.i64") == 64)
+        #expect(config.getFloat(key: "math::math.f64") == 64.1)
+        #expect(config.get(key: "mysql::mysql.master.host") == "10.0.0.1")
         config.set(key: "other::key1", value: "new test key")
-        XCTAssertEqual("new test key", config.get(key: "other::key1"))
+        #expect(config.get(key: "other::key1") == "new test key")
         config.set(key: "other::key1", value: "test key")
-        XCTAssertEqual("test key", config.get(key: "other::key1"))
-        XCTAssertEqual("r.sub==p.sub&&r.obj==p.obj", config.get(key: "multi1::name"))
-        XCTAssertEqual("r.sub==p.sub&&r.obj==p.obj", config.get(key: "multi2::name"))
-        XCTAssertEqual("r.sub==p.sub&&r.obj==p.obj", config.get(key: "multi3::name"))
-        XCTAssertEqual("", config.get(key: "multi4::name"))
-        XCTAssertEqual("r.sub==p.sub&&r.obj==p.obj", config.get(key: "multi5::name"))
-        try pool.syncShutdownGracefully()
-        try elg.syncShutdownGracefully()
+        #expect(config.get(key: "other::key1") == "test key")
+        #expect(config.get(key: "multi1::name") == "r.sub==p.sub&&r.obj==p.obj")
+        #expect(config.get(key: "multi2::name") == "r.sub==p.sub&&r.obj==p.obj")
+        #expect(config.get(key: "multi3::name") == "r.sub==p.sub&&r.obj==p.obj")
+        #expect(config.get(key: "multi4::name") == "")
+        #expect(config.get(key: "multi5::name") == "r.sub==p.sub&&r.obj==p.obj")
     }
 
-    func testFromText() throws {
+    @Test("Parse config from text")
+    func testFromText() async throws {
         let text = #"""
             # test config
                             debug = true
@@ -62,17 +49,14 @@ final class ConfigTests: XCTestCase {
                             math.f64 = 64.1
         """#
 
-        var config = try Config.from(text: text, on: elg.next()).wait()
-        XCTAssertEqual(true, config.getBool(key: "debug"))
-        XCTAssertEqual(64, config.getInt(key: "math::math.i64"))
-        XCTAssertEqual(64.1, config.getFloat(key: "math::math.f64"))
-        XCTAssertEqual("10.0.0.1", config.get(key: "mysql::mysql.master.host"))
+        var config = try await Config.from(text: text)
+        #expect(config.getBool(key: "debug") == true)
+        #expect(config.getInt(key: "math::math.i64") == 64)
+        #expect(config.getFloat(key: "math::math.f64") == 64.1)
+        #expect(config.get(key: "mysql::mysql.master.host") == "10.0.0.1")
         config.set(key: "other::key1", value: "new test key")
-        XCTAssertEqual("new test key", config.get(key: "other::key1"))
+        #expect(config.get(key: "other::key1") == "new test key")
         config.set(key: "other::key1", value: "test key")
-        XCTAssertEqual("test key", config.get(key: "other::key1"))
-
-        try pool.syncShutdownGracefully()
-        try elg.syncShutdownGracefully()
+        #expect(config.get(key: "other::key1") == "test key")
     }
 }
