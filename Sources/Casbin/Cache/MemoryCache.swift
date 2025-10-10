@@ -55,7 +55,7 @@ final class LruCache<Key:Hashable,Value> {
         }
     private var storage:[Key:ListNode] = [:]
     var capacity = 0
-    private var lock:Lock
+    private var lock:NIOLock
     
     /// head's nextNode is the actual first node in the Double Linked-list.
     private var head = ListNode()
