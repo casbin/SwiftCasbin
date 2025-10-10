@@ -98,7 +98,10 @@ extension DefaultEffectStream : EffectorStream {
 
 public struct DefaultEffector: Effector {
     public func newStream(expr: String, cap: Int) -> EffectorStream {
-        assert(cap > 0)
+        // Avoid crashing on empty policy sets; treat as no-allow.
+        if cap <= 0 {
+            return DefaultEffectStream(done: true, res: false, expr: expr, idx: 0, cap: 0, expl: [])
+        }
         
         var res:Bool {
             switch expr {
@@ -117,4 +120,3 @@ public struct DefaultEffector: Effector {
     
     
 }
-
