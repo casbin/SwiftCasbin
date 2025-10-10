@@ -15,27 +15,23 @@
 
 ///  * Assertion represents an expression in a section of the model.
 ///  * For example: r = sub, obj, act
-public final class Assertion {
+public struct Assertion: Sendable {
     public var key: String
-    public var value:String
-    public var tokens:[String]
+    public var value: String
+    public var tokens: [String]
     public var policy: [[String]]
-    public var rm: RoleManager
-    
-    public init(key:String = "",
-                value:String="",
-                tokens:[String] = [],
-                policy:[[String]] = [],
-                rm: RoleManager = DefaultRoleManager.init(maxHierarchyLevel: 0)) {
+
+    public init(key: String = "",
+                value: String = "",
+                tokens: [String] = [],
+                policy: [[String]] = []) {
         self.key = key
         self.value = value
         self.tokens = tokens
         self.policy = policy
-        self.rm = rm
     }
-    
+
     func buildRolelinkes(rm: RoleManager) -> CasbinResult<Void> {
-        self.rm = rm
         let count = self.value.filter { $0  == "_" }.count
         if count < 2 {
             return .failure(.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
@@ -45,10 +41,10 @@ public final class Assertion {
                 return .failure(.MODEL_ERROR(.P("Policy doesn't match policy definition. expected length: \(count), found length \(rule.count)")))
             }
             if count == 2 {
-                self.rm.addLink(name1: rule[0], name2: rule[1], domain: nil)
+                rm.addLink(name1: rule[0], name2: rule[1], domain: nil)
                
             } else if count == 3 {
-                self.rm.addLink(name1: rule[0], name2: rule[1], domain: rule[2])
+                rm.addLink(name1: rule[0], name2: rule[1], domain: rule[2])
             } else {
                 return .failure(.MODEL_ERROR(.P("Multiple domains are not supported")))
             }
@@ -57,7 +53,6 @@ public final class Assertion {
     }
     
     func buildIncrementalRoleLinks(rm:RoleManager,eventData:EventData) -> CasbinResult<Void> {
-        self.rm = rm
         let count = self.value.filter { $0  == "_" }.count
         if count < 2 {
             return .failure(.MODEL_ERROR(.P(#"the number of "_" in role definition should be at least 2"#)))
@@ -85,15 +80,15 @@ public final class Assertion {
                 }
                 if count == 2 {
                     if insert {
-                      self.rm.addLink(name1: rule[0], name2: rule[1], domain: nil)
+                      rm.addLink(name1: rule[0], name2: rule[1], domain: nil)
                     } else {
-                      return self.rm.deleteLink(name1: rule[0], name2: rule[1], domain: nil)
+                      return rm.deleteLink(name1: rule[0], name2: rule[1], domain: nil)
                     }
                 }else if count == 3 {
                     if insert {
-                      self.rm.addLink(name1: rule[0], name2: rule[1], domain: rule[2])
+                      rm.addLink(name1: rule[0], name2: rule[1], domain: rule[2])
                     } else {
-                      return self.rm.deleteLink(name1: rule[0], name2: rule[1], domain: rule[2])
+                      return rm.deleteLink(name1: rule[0], name2: rule[1], domain: rule[2])
                     }
                 } else {
                     return .failure(.MODEL_ERROR(.P("Multiple domains are not supported")))

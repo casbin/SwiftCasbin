@@ -37,6 +37,12 @@ public struct Config: Sendable {
         try config.parse(text).get()
         return config
     }
+    // Async convenience to keep symmetry with `from(file:)` at call sites.
+    public static func from(text: String) async throws -> Self {
+        var config = Config()
+        try config.parse(text).get()
+        return config
+    }
     private mutating func parse(_ s: String) -> CasbinResult<Void> {
         let s = s.replacingOccurrences(of: "\r", with: "")
         let lines = s.split(separator: "\n")

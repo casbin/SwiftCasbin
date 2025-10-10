@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public extension CoreAPI {
+public extension Enforcer {
     //MARK: ManagementAPI
     func addNamedPolicy(ptype: String, params: [String]) async throws -> Bool {
         try await addPolicyInternal(sec: "p", ptype: ptype, rule: params)
@@ -111,7 +111,7 @@ public extension CoreAPI {
     
 }
 
-public extension CoreAPI {
+public extension Enforcer {
     func addPolicy(params: [String]) async throws -> Bool {
         try await addNamedPolicy(ptype: "p", params: params)
     }
@@ -176,4 +176,3 @@ public extension CoreAPI {
     }
     
 }
-

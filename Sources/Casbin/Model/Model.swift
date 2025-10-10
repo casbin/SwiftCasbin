@@ -15,7 +15,7 @@
 
 
 
-public protocol Model {
+public protocol Model: Sendable {
     func addDef(sec:String,key:String,value:String) -> Bool
     func buildRolelinks(rm:RoleManager) -> CasbinResult<Void>
     func buildIncrementalRoleLinks(

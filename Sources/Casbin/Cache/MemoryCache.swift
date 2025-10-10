@@ -15,7 +15,12 @@
 import Foundation
 import Synchronization
 
-public final class DefaultCache: Cache, Sendable {
+/// A thread-safe default in-memory cache backed by a lock-protected LRU.
+///
+/// - Note: Keys and values must be `Sendable`. This cache is intended for
+///         use inside `Enforcer` and is not marked `Sendable` itself since
+///         the actor boundary provides isolation.
+public final class DefaultCache: Cache {
     init(lru: LruCache<Int, Bool>) {
         self.lru = lru
     }
@@ -42,93 +47,104 @@ public final class DefaultCache: Cache, Sendable {
     }
 }
 
-final class LruCache<Key:Hashable & Sendable,Value: Sendable>: @unchecked Sendable {
-    private class ListNode {
+/// A simple thread-safe LRU cache with O(1) get/set operations.
+///
+/// Implementation details:
+/// - Uses a doubly-linked list of Nodes for recency ordering and a Dictionary
+///   for key lookups.
+/// - Synchronization is provided by a `Mutex` — callers must not assume
+///   re-entrant callbacks from within cache operations.
+/// - Sentinels `head` and `tail` have `nil` key/value and are not observable.
+///
+/// Complexity:
+/// - `getValue(forKey:)` — O(1)
+/// - `setValue(value:forKey:)` — O(1)
+final class LruCache<Key: Hashable & Sendable, Value: Sendable> {
+    private final class Node {
         var key: Key?
         var value: Value?
-        var prevNode: ListNode?
-        var nextNode: ListNode?
-
-        init(key: Key? = nil, value: Value? = nil) {
-            self.key = key
-            self.value = value
-        }
+        var prev: Node?
+        var next: Node?
+        init(key: Key? = nil, value: Value? = nil) { self.key = key; self.value = value }
     }
 
     private struct State {
-        var storage: [Key:ListNode] = [:]
-        var head: ListNode
-        var tail: ListNode
-
-        init(head: ListNode, tail: ListNode) {
-            self.head = head
-            self.tail = tail
-        }
+        var dict: [Key: Node]
+        var head: Node
+        var tail: Node
     }
-
-    var capacity = 0
     private let state: Mutex<State>
+    var capacity: Int
 
+    /// Create an LRU with a maximum number of entries.
+    /// - Parameter capacity: Maximum items to retain. On insert beyond
+    ///   capacity, the least-recently-used item is evicted.
     init(capacity: Int) {
         self.capacity = capacity
-        let head = ListNode()
-        let tail = ListNode()
-        head.nextNode = tail
-        tail.prevNode = head
-        self.state = Mutex(State(head: head, tail: tail))
-    }
-    /// Remove Node in the Double Linked-list.
-    private nonisolated func remove(node: ListNode, state: inout State) {
-        node.prevNode?.nextNode = node.nextNode
-        node.nextNode?.prevNode = node.prevNode
-        guard let key = node.key else { return }
-        state.storage.removeValue(forKey: key)
+        let head = Node()
+        let tail = Node()
+        head.next = tail
+        tail.prev = head
+        self.state = Mutex(State(dict: [:], head: head, tail: tail))
     }
 
+    /// Remove all entries.
     func clear() {
-        state.withLock { $0.storage = [:] }
-    }
-
-    /// insertion is always fullfilled on the Head side.
-    private nonisolated func insertToHead(node: ListNode, state: inout State) {
-        state.head.nextNode?.prevNode = node
-        node.nextNode = state.head.nextNode
-        node.prevNode = state.head
-        state.head.nextNode = node
-        guard let key = node.key else { return }
-        state.storage.updateValue(node, forKey: key)
-    }
-
-    /// When the cache hit happen, remove the node what you get and insert to Head side again.
-    func getValue(forKey key: Key) -> Value? {
-        state.withLock { state in
-            if !state.storage.contains(where: { $0.key == key }) {
-                return nil
-            }
-            guard let node = state.storage[key] else { return nil }
-            // Store the value before mutating state
-            let value = node.value
-            remove(node: node, state: &state)
-            insertToHead(node: node, state: &state)
-            return value
+        state.withLock { st in
+            st.dict.removeAll(keepingCapacity: false)
+            st.head.next = st.tail
+            st.tail.prev = st.head
         }
     }
 
-    /// Push your value and if there is same value, remove that automatically.
-    /// if not, remove Least Recently Used Node and push new node.
+    // helpers are written inline inside withLock to avoid task isolation issues
+
+    /// Returns a value for `key` and promotes the entry to most-recently-used.
+    func getValue(forKey key: Key) -> Value? {
+        var out: Value?
+        state.withLock { st in
+            guard let node = st.dict[key] else { return }
+            // detach
+            node.prev?.next = node.next
+            node.next?.prev = node.prev
+            // attach to front
+            node.next = st.head.next
+            node.prev = st.head
+            st.head.next?.prev = node
+            st.head.next = node
+            out = node.value
+        }
+        return out
+    }
+
+    /// Inserts or updates `key` with `value` and promotes it to most-recently-used.
     func setValue(value: Value, forKey key: Key) {
-        state.withLock { state in
-            let newNode = ListNode(key: key, value: value)
-            if state.storage.contains(where: { $0.key == key }){
-                guard let oldNode = state.storage[key] else { return }
-                remove(node: oldNode, state: &state)
-            } else {
-                if state.storage.count >= capacity {
-                    guard let tailNode = state.tail.prevNode else { return }
-                    remove(node: tailNode, state: &state) // remove Least Recently Used Node
-                }
+        state.withLock { st in
+            if let node = st.dict[key] {
+                node.value = value
+                // detach
+                node.prev?.next = node.next
+                node.next?.prev = node.prev
+                // attach to front
+                node.next = st.head.next
+                node.prev = st.head
+                st.head.next?.prev = node
+                st.head.next = node
+                return
             }
-            insertToHead(node: newNode, state: &state)
+            let node = Node(key: key, value: value)
+            st.dict[key] = node
+            // attach to front
+            node.next = st.head.next
+            node.prev = st.head
+            st.head.next?.prev = node
+            st.head.next = node
+            if st.dict.count > capacity, let lru = st.tail.prev, lru !== st.head, let k = lru.key {
+                // detach LRU
+                lru.prev?.next = lru.next
+                lru.next?.prev = lru.prev
+                st.dict.removeValue(forKey: k)
+            }
         }
     }
 }

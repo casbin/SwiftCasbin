@@ -88,11 +88,7 @@ public struct Util {
         if let tokens = Util.parseCsvLine(line: line),!tokens.isEmpty {
             let key = tokens[0]
             if let sec = key.first {
-                if let item = m.getModel()[String(sec)] {
-                    if let ast = item[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
-                }
+                _ = m.addPolicy(sec: String(sec), ptype: key, rule: Array(tokens.dropFirst()))
             }
         }
     }
@@ -120,9 +116,7 @@ public struct Util {
                     }
                 }
                 if !isFiltered {
-                    if let ast = m.getModel()[sec]?[key] {
-                        ast.policy.append(Array(tokens[1...]))
-                    }
+                    _ = m.addPolicy(sec: sec, ptype: key, rule: Array(tokens.dropFirst()))
                 }
                 
             }
@@ -136,4 +130,3 @@ public struct Util {
     
     
 }
-

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public extension CoreAPI {
+public extension Enforcer {
     func addPermission(for user: String, permission: [String]) async throws -> Bool {
         var perm = permission
         perm.insert(user, at: 0)
@@ -53,17 +53,10 @@ public extension CoreAPI {
         return try await removeFilteredGroupingPolicy(fieldIndex: 0, fieldValues: params)
     }
     func getRoles(for name:String,domain:String?) -> [String] {
-        var roles:[String] = []
-        if let ast = model.getModel()["g"]?["g"] {
-            roles = ast.rm.getRoles(name: name, domain: domain)
-        }
-        return roles
+        getRoleManager().getRoles(name: name, domain: domain)
     }
     func getUsers(for name:String,domain:String?) -> [String] {
-        if let ast = model.getModel()["g"]?["g"] {
-            return ast.rm.getUsers(name: name, domain: domain)
-        }
-        return []
+        getRoleManager().getUsers(name: name, domain: domain)
     }
     func hasRole(for name:String,role:String,domain:String?) -> Bool {
         getRoles(for: name, domain: domain).contains(role)

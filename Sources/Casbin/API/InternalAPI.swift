@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extension CoreAPI {
+extension Enforcer {
     //MARK: InternalApi
     func addPolicyInternal(sec: String, ptype: String, rule: [String]) async throws -> Bool {
         let _bool = try await adapter.addPolicy(sec: sec, ptype: ptype, rule: rule)
@@ -21,7 +21,7 @@ extension CoreAPI {
         }
         let ruleAdded = model.addPolicy(sec: sec, ptype: ptype, rule: rule)
         let eventData = EventData.AddPolicy(sec, ptype, rule)
-        return try afterOperatePolicy(sec: sec, oped: ruleAdded, d: eventData, t: ruleAdded)
+        return try await afterOperatePolicy(sec: sec, oped: ruleAdded, d: eventData, t: ruleAdded)
     }
 
     func addPoliciesInternal(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
@@ -31,7 +31,7 @@ extension CoreAPI {
         }
         let rulesAdded = model.addPolicies(sec: sec, ptype: ptype, rules: rules)
         let eventData = EventData.AddPolicies(sec, ptype, rules)
-        return try afterOperatePolicy(sec: sec, oped: rulesAdded, d: eventData, t: rulesAdded)
+        return try await afterOperatePolicy(sec: sec, oped: rulesAdded, d: eventData, t: rulesAdded)
     }
 
     func removePolicyInternal(sec: String, ptype: String, rule: [String]) async throws -> Bool {
@@ -41,7 +41,7 @@ extension CoreAPI {
         }
         let ruleRemoved = model.removePolicy(sec: sec, ptype: ptype, rule: rule)
         let eventData = EventData.RemovePolicy(sec, ptype, rule)
-        return try afterOperatePolicy(sec: sec, oped: ruleRemoved, d: eventData, t: ruleRemoved)
+        return try await afterOperatePolicy(sec: sec, oped: ruleRemoved, d: eventData, t: ruleRemoved)
     }
 
     func removePoliciesInternal(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
@@ -51,7 +51,7 @@ extension CoreAPI {
         }
         let rulesRemoved = model.removePolicies(sec: sec, ptype: ptype, rules: rules)
         let eventData = EventData.RemovePolicies(sec, ptype, rules)
-        return try afterOperatePolicy(sec: sec, oped: rulesRemoved, d: eventData, t: rulesRemoved)
+        return try await afterOperatePolicy(sec: sec, oped: rulesRemoved, d: eventData, t: rulesRemoved)
     }
 
     func removeFilteredPolicyInternal(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> (Bool,[[String]]) {
@@ -61,19 +61,17 @@ extension CoreAPI {
         }
         let (rolesRemoved, rules) = model.removeFilteredPolicy(sec: sec, ptype: ptype, fieldIndex: fieldIndex, fieldValues: fieldValues)
         let eventData = EventData.RemoveFilteredPolicy(sec, ptype, rules)
-        return try afterOperatePolicy(sec: sec, oped: rolesRemoved, d: eventData, t: (rolesRemoved, rules))
+        return try await afterOperatePolicy(sec: sec, oped: rolesRemoved, d: eventData, t: (rolesRemoved, rules))
     }
 
-    private func afterOperatePolicy<T>(sec: String, oped: Bool, d: EventData, t: T) throws -> T {
+    private func afterOperatePolicy<T>(sec: String, oped: Bool, d: EventData, t: T) async throws -> T {
         if oped {
-            emit(e: Event.PolicyChange, d: d)
-            emit(e: Event.ClearCache, d: EventData.ClearCache)
+            await emit(e: Event.PolicyChange, d: d)
+            await emit(e: Event.ClearCache, d: EventData.ClearCache)
         }
-        if sec != "g" || !hasAutoBuildRoleLinksEnabled() {
-            return t
-        }
+        let needsBuild = hasAutoBuildRoleLinksEnabled()
+        if sec != "g" || !needsBuild { return t }
         try buildIncrementalRoleLinks(eventData: d).get()
         return t
     }
 }
-

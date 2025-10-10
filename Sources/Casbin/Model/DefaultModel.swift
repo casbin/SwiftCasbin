@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-public final class DefaultModel {
-    var model: [String:[String:Assertion]] = [:]
+public final class DefaultModel: Sendable {
+    private struct State {
+        var model: [String:[String:Assertion]] = [:]
+    }
+    private let state = Mutex(State())
     public static func from(file: String) async throws -> DefaultModel {
         let cfg = try await Config.from(file: file)
         let model = DefaultModel.init()
@@ -76,41 +79,36 @@ public final class DefaultModel {
 }
 
 extension DefaultModel:Model {
-    public func getModel() -> [String : [String : Assertion]] {
-        self.model
-    }
+    public func getModel() -> [String : [String : Assertion]] { state.withLock { $0.model } }
     
     
     public func addDef(sec:String,key:String,value:String) -> Bool {
-        let ast = Assertion.init(key: key, value: Util.removeComment(value))
-        if ast.value.isEmpty {
-            return false
-        }
+        var ast = Assertion.init(key: key, value: Util.removeComment(value))
+        if ast.value.isEmpty { return false }
         if sec == "r" || sec == "p" {
             ast.tokens = ast
                 .value
                 .split(separator: ",")
-                .map {
-                    "\(key)_\($0.trimmingCharacters(in: .whitespaces))"
-                }
+                .map { "\(key)_\($0.trimmingCharacters(in: .whitespaces))" }
         } else {
             ast.value = Util.escapeAssertion(ast.value)
         }
-        var new = model.getOrInsert(key: sec, with: [:])
-        new[key] = ast
-        model.updateValue(new, forKey: sec)
+        state.withLock { state in
+            var new = state.model.getOrInsert(key: sec, with: [:])
+            new[key] = ast
+            state.model.updateValue(new, forKey: sec)
+        }
         return true
     }
     
     public func buildRolelinks(rm:RoleManager) -> CasbinResult<Void> {
-        if let asts = model["g"] {
+        let asts = state.withLock { $0.model["g"] }
+        if let asts = asts {
             for ast in asts.values {
-              let r = ast.buildRolelinkes(rm: rm)
+                let r = ast.buildRolelinkes(rm: rm)
                 switch r {
-                case .success:
-                    continue
-                case .failure(let e):
-                    return .failure(e)
+                case .success: continue
+                case .failure(let e): return .failure(e)
                 }
             }
         }
@@ -120,7 +118,7 @@ extension DefaultModel:Model {
         rm:RoleManager,
         eventData:EventData)-> CasbinResult<Void> {
         
-        var ast: Assertion? {
+        let ast: Assertion? = state.withLock { state in
             switch eventData {
             case let .AddPolicy(sec, ptype, _),
                  let .AddPolicies(sec, ptype, _),
@@ -128,7 +126,7 @@ extension DefaultModel:Model {
                  let .RemovePolicies(sec, ptype, _),
                  let .RemoveFilteredPolicy(sec, ptype, _) :
                 if sec == "g" {
-                    return model[sec]?[ptype]
+                    return state.model[sec]?[ptype]
                 } else {
                     return nil
                 }
@@ -142,31 +140,27 @@ extension DefaultModel:Model {
         return .success(())
     }
     
-    public  func addPolicy(sec:String,ptype:String,rule:[String]) -> Bool {
-        if let ast = model[sec]?[ptype] {
+    public func addPolicy(sec:String,ptype:String,rule:[String]) -> Bool {
+        return state.withLock { state in
+            guard var secMap = state.model[sec], var ast = secMap[ptype] else { return false }
             ast.policy.append(rule)
+            secMap[ptype] = ast
+            state.model[sec] = secMap
             return true
         }
-        return false
     }
     public func addPolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
-        var allAdded = true
-        if let ast = model[sec]?[ptype] {
-            for rule in rules {
-                if ast.policy.contains(rule) {
-                    allAdded = false
-                    return allAdded
-                }
-            }
+        return state.withLock { state in
+            guard var secMap = state.model[sec], var ast = secMap[ptype] else { return false }
+            for rule in rules { if ast.policy.contains(rule) { return false } }
             ast.policy.append(contentsOf: rules)
+            secMap[ptype] = ast
+            state.model[sec] = secMap
+            return true
         }
-        return allAdded
     }
     public func getPolicy(sec:String,ptype:String) -> [[String]] {
-        if let ast = model[sec]?[ptype] {
-           return ast.policy
-        }
-        return []
+        state.withLock { $0.model[sec]?[ptype]?.policy ?? [] }
     }
     
     public func getFilteredPolicy(sec:String,
@@ -174,19 +168,16 @@ extension DefaultModel:Model {
                            fieldIndex:Int,
                            fieldValues:[String])-> [[String]] {
         var res:[[String]] = []
-        if let ast = model[sec]?[ptype] {
+        if let ast = state.withLock({ $0.model[sec]?[ptype] }) {
             for rule in ast.policy {
                 var matched = true
                 for (i,fieldValue) in fieldValues.enumerated() {
-                    if !fieldValue.isEmpty
-                        && rule[fieldIndex + i] != fieldValue {
-                       matched = false
-                       break
+                    if !fieldValue.isEmpty && rule[fieldIndex + i] != fieldValue {
+                        matched = false
+                        break
                     }
                 }
-                if matched {
-                    res.append(rule)
-                }
+                if matched { res.append(rule) }
             }
         }
         return res
@@ -202,39 +193,35 @@ extension DefaultModel:Model {
       }
     
     public func removePolicy(sec:String,ptype:String,rule: [String]) -> Bool {
-       if let ast = model[sec]?[ptype] {
-        ast.policy.removeAll {
-            $0 == rule
-         }
-        return true
+        return state.withLock { state in
+            guard var secMap = state.model[sec], var ast = secMap[ptype] else { return false }
+            let before = ast.policy.count
+            ast.policy.removeAll { $0 == rule }
+            let changed = ast.policy.count != before
+            if changed { secMap[ptype] = ast; state.model[sec] = secMap }
+            return changed
         }
-        return false
     }
     public func removePolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
-        var allRemoved = true
-        if let ast = model[sec]?[ptype] {
-            for rule in rules {
-                if ast.policy.contains(rule) {
-                    allRemoved = false
-                    return allRemoved
-                }
-            }
-            for rule in rules {
-                ast.policy.removeAll { $0 == rule }
-            }
+        return state.withLock { state in
+            guard var secMap = state.model[sec], var ast = secMap[ptype] else { return false }
+            for rule in rules { if ast.policy.contains(rule) == false { return false } }
+            for rule in rules { ast.policy.removeAll { $0 == rule } }
+            secMap[ptype] = ast
+            state.model[sec] = secMap
+            return true
         }
-        return allRemoved
     }
     
-    public  func clearPolicy() {
-        if let modelP = model["p"] {
-            modelP.values.forEach {
-                $0.policy.removeAll()
+    public func clearPolicy() {
+        state.withLock { state in
+            if var modelP = state.model["p"] {
+                for (k,var v) in modelP { v.policy.removeAll(); modelP[k] = v }
+                state.model["p"] = modelP
             }
-        }
-        if let modelG = model["g"] {
-            modelG.values.forEach {
-                $0.policy.removeAll()
+            if var modelG = state.model["g"] {
+                for (k,var v) in modelG { v.policy.removeAll(); modelG[k] = v }
+                state.model["g"] = modelG
             }
         }
     }
@@ -244,32 +231,27 @@ extension DefaultModel:Model {
         fieldIndex:Int,
         fieldValues:[String]
     ) -> (Bool,[[String]]) {
-        if fieldValues.isEmpty {
-            return (false,[])
-        }
-        var res = false
-        var rulesRemoved:[[String]] = []
-        if let ast = model[sec]?[ptype] {
+        if fieldValues.isEmpty { return (false, []) }
+        return state.withLock { state in
+            guard var secMap = state.model[sec], var ast = secMap[ptype] else { return (false, []) }
+            var res = false
+            var rulesRemoved: [[String]] = []
             for rule in ast.policy {
                 var matched = true
-                for (i,fieldValue) in fieldValues.enumerated() {
-                    if !fieldValue.isEmpty
-                        && rule[fieldIndex + i] != fieldValue {
-                       matched = false
-                       break
+                for (i, fieldValue) in fieldValues.enumerated() {
+                    if !fieldValue.isEmpty && rule[fieldIndex + i] != fieldValue {
+                        matched = false
+                        break
                     }
                 }
-                if matched {
-                    res = true
-                    rulesRemoved.append(rule)
-                }
+                if matched { res = true; rulesRemoved.append(rule) }
             }
             if res && !rulesRemoved.isEmpty {
-                for rule in rulesRemoved {
-                    ast.policy.removeAll { $0 == rule}
-                }
+                for rule in rulesRemoved { ast.policy.removeAll { $0 == rule } }
+                secMap[ptype] = ast
+                state.model[sec] = secMap
             }
+            return (res, rulesRemoved)
         }
-        return (res,rulesRemoved)
     }
 }

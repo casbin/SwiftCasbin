@@ -32,10 +32,8 @@ extension MemoryAdapter: Adapter {
             for line in policySet {
                 let sec = line[0]
                 let ptype = line[1]
-                let rule = Array(line[1...])
-                if let ast = m.getModel()[sec]?[ptype] {
-                    ast.policy.append(rule)
-                }
+                let ruleValues = Array(line.dropFirst(2))
+                _ = m.addPolicy(sec: sec, ptype: ptype, rule: ruleValues)
             }
         }
     }
@@ -62,9 +60,8 @@ extension MemoryAdapter: Adapter {
                     }
                 }
                 if !isFiltered {
-                    if let ast = m.getModel()[sec]?[ptype] {
-                        ast.policy.append(rule)
-                    }
+                    let ruleValues = Array(rule.dropFirst())
+                    _ = m.addPolicy(sec: sec, ptype: ptype, rule: ruleValues)
                 } else {
                     filtered.withLock { $0 = true }
                 }
