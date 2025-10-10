@@ -37,7 +37,7 @@ public struct Ipv4Addr: Hashable {
         precondition(octets.count == 4, "ipv4 octets count must 4")
         var addr = in_addr()
         withUnsafeMutableBytes(of: &addr) { raw in
-            _ = octets.withUnsafeBytes { src in
+            octets.withUnsafeBytes { src in
                 raw.prefix(4).copyBytes(from: src)
             }
         }
@@ -112,7 +112,7 @@ public struct Ipv6Addr:Hashable {
         precondition(octets.count == 16, "ipv6 octets count must 16")
         var addr = in6_addr()
         withUnsafeMutableBytes(of: &addr) { raw in
-            _ = octets.withUnsafeBytes { src in
+            octets.withUnsafeBytes { src in
                 raw.prefix(16).copyBytes(from: src)
             }
         }
