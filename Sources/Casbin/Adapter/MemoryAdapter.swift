@@ -14,6 +14,7 @@
 
 import Synchronization
 
+/// An in-memory adapter for loading and persisting policy while testing.
 public final class MemoryAdapter: Sendable {
     public init() {
     }

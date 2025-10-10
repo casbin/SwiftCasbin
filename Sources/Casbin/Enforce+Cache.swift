@@ -18,6 +18,8 @@ import Foundation
 
 extension Enforcer {
     // Enable in-memory LRU cache for enforce results
+    /// Enables an in-memory LRU cache for enforce results.
+    /// - Parameter capacity: Maximum number of entries to store.
     public func enableMemoryCache(capacity: Int = 200) {
         let lru = LruCache<Int,Bool>(capacity: capacity)
         self.cache = DefaultCache(lru: lru)

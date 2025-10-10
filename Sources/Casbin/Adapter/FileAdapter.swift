@@ -18,6 +18,7 @@ import Synchronization
 public typealias LoadPolicyFileHandler = @Sendable (String, Model) -> Void
 public typealias LoadFilteredPolicyFileHandler = @Sendable (String, Model, Filter) -> Bool
 
+/// A file-based adapter that reads and writes CSV policy files.
 public final class FileAdapter: Sendable {
     private let filePath: String
     private let filtered: Mutex<Bool> = Mutex(false)

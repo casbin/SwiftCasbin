@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// The default in-memory model implementation.
 public final class DefaultModel: Sendable {
     private struct State {
         var model: [String:[String:Assertion]] = [:]
     }
     private let state = Mutex(State())
+    /// Loads a model from a `.conf` file path.
     public static func from(file: String) async throws -> DefaultModel {
         let cfg = try await Config.from(file: file)
         let model = DefaultModel.init()
@@ -25,6 +27,7 @@ public final class DefaultModel: Sendable {
         }
         return model
     }
+    /// Parses a model from raw text.
     public static func from(text: String) throws -> DefaultModel {
         let cfg = try Config.from(text: text)
         let model = DefaultModel.init()

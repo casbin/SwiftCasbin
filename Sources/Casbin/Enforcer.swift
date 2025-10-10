@@ -16,8 +16,15 @@ import Logging
 @preconcurrency import Expression
 import Foundation
 
+/// A callback signature for receiving asynchronous policy and cache events.
 public typealias EventCallback = @Sendable (EventData, Enforcer) async -> Void
 
+/// The main entry point for authorization decisions.
+///
+/// Enforcer is an actor that evaluates requests against a loaded model and policy.
+/// Create an instance with a ``Model`` and an ``Adapter`` and then call
+/// ``enforce(_:)`` to authorize requests. Most APIs are `async` and accept
+/// `Sendable` values to be concurrency-friendly.
 public actor Enforcer {
     public var logger: Logger
     public var model: Model
@@ -36,6 +43,10 @@ public actor Enforcer {
     var autoNotifyWatcher: Bool = true
     var events: [Event:[EventCallback]] = [:]
 
+    /// Initializes a new enforcer.
+    /// - Parameters:
+    ///   - m: The loaded authorization ``Model``.
+    ///   - adapter: The ``Adapter`` used to load and persist policy.
     public init(m: Model, adapter: Adapter) async throws {
         self.model = m
         self.adapter = adapter
@@ -74,14 +85,17 @@ public actor Enforcer {
 }
 
 extension Enforcer {
+    /// Registers an async event listener.
     public func on(e: Event, f: @escaping @Sendable (EventData, Enforcer) async -> Void) {
         var fs = self.events.getOrInsert(key: e, with: [])
         fs.append(f)
         events.updateValue(fs, forKey: e)
     }
+    /// Removes all listeners for a given event type.
     public func off(e: Event) {
         events.removeValue(forKey: e)
     }
+    /// Emits an event to all listeners.
     public func emit(e: Event, d: EventData) async {
         if let cbs = events[e] {
             for cb in cbs { await cb(d, self) }
@@ -333,6 +347,7 @@ extension Enforcer {
         }
     }
     
+    /// Re-builds role links from the current model and policy.
     public func buildRoleLinks() -> CasbinResult<Void> {
         roleManager.clear()
         return model.buildRolelinks(rm: roleManager)
@@ -342,6 +357,7 @@ extension Enforcer {
         model.buildIncrementalRoleLinks(rm: roleManager, eventData: eventData)
     }
     
+    /// Loads policy from the adapter, optionally building role links.
     public func loadPolicy() async throws {
         model.clearPolicy()
         try await adapter.loadPolicy(m: model)
@@ -354,9 +370,12 @@ extension Enforcer {
 }
 
 extension Enforcer {
+    /// Returns the in-memory result cache if enabled.
     public func getCache() -> Cache? { self.cache }
+    /// Updates the cache capacity if caching is enabled.
     public func setCapacity(_ c: Int) { self.cache?.setCapacity(c) }
     
+    /// Enables or disables internal status logging.
     public var enableLog: Bool {
         get {
             self.logEnabled
@@ -366,20 +385,26 @@ extension Enforcer {
         }
     }
     
+    /// Evaluates a request against the model and policy.
+    /// - Parameter rvals: Request values (e.g. subject, object, action).
+    /// - Returns: `true` when authorized; `false` otherwise.
     public func enforce(_ rvals: any Sendable...) -> Result<Bool,Error> {
         enforce(rvals: rvals)
     }
     
+    /// Registers a custom matcher function usable from the model.
     public func addFunction(fname: String, f: @escaping ExpressionFunction) {
         fm.addFuntion(name: fname, function: f)
         symbols[.function(fname, arity: .atLeast(2))] = f
     }
     
     
+    /// Returns the current role manager.
     public func getRoleManager() -> RoleManager {
         roleManager
     }
     
+    /// Sets the role manager and (optionally) rebuilds links.
     public func setRoleManager(rm:RoleManager) -> CasbinResult<Void> {
         self.roleManager = rm
         if autoBuildRoleLinks {
@@ -393,26 +418,31 @@ extension Enforcer {
         return registerGFunctions()
     }
     
+    /// Replaces the current model and reloads policy.
     public func setModel(_ model: Model) async throws {
         self.model = model
         try await loadPolicy()
     }
 
+    /// Replaces the current adapter and reloads policy.
     public func setAdapter(_ adapter: Adapter) async throws {
         self.adapter = adapter
         try await loadPolicy()
     }
 
+    /// Loads a filtered subset of policy.
     public func loadFilterdPolicy(_ f: Filter) async throws {
         model.clearPolicy()
         try await adapter.loadFilteredPolicy(m: model, f: f)
         if self.autoBuildRoleLinks { try self.buildRoleLinks().get() }
     }
     
+    /// Indicates whether enforcement is enabled.
     public var isEnabled: Bool {
         self.enabled
     }
     
+    /// Persists the current policy using the adapter and emits a change event.
     public func savePolicy() async throws {
         try await adapter.savePolicy(m: model)
         var policies = self.getAllPolicy()
@@ -421,6 +451,7 @@ extension Enforcer {
         await self.emit(e: Event.PolicyChange, d: .SavePolicy(policies))
     }
 
+    /// Clears all policy. If `autoSave` is enabled, removes it from the adapter as well.
     public func clearPolicy() async throws {
         if autoSave {
             try await adapter.clearPolicy()
@@ -432,10 +463,12 @@ extension Enforcer {
         }
     }
     
+    /// Enables or disables automatic persistence when policy changes.
     public func enableAutoSave(auto: Bool) {
         self.autoSave = auto
     }
     
+    /// Enables or disables enforcement.
     public func enableEnforce(enabled: Bool) {
         self.enabled = enabled
         if logEnabled {
@@ -444,15 +477,20 @@ extension Enforcer {
         
     }
     
+    /// Enables or disables automatic role-link rebuilding after changes.
     public func enableAutoBuildRoleLinks(auto: Bool) {
         autoBuildRoleLinks = auto
     }
     
+    /// Enables or disables automatic watcher notifications after changes.
     public func enableAutoNotifyWatcher(auto: Bool) {
         autoNotifyWatcher = auto
     }
     
+    /// Returns whether auto-save is enabled.
     public func hasAutoSaveEnable() -> Bool { autoSave }
+    /// Returns whether auto-notify-watcher is enabled.
     public func hasAutoNotifyWatcherEnabled() -> Bool { autoNotifyWatcher }
+    /// Returns whether auto-build-role-links is enabled.
     public func hasAutoBuildRoleLinksEnabled() -> Bool { autoBuildRoleLinks }
 }

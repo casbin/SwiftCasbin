@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Filter used for loading a subset of the policy from an adapter.
 public struct Filter: Sendable {
     public init(p: [String], g: [String]) {
         self.p = p
@@ -22,6 +23,7 @@ public struct Filter: Sendable {
     public let g: [String]
 }
 
+/// Adapters load and persist policy for an ``Enforcer``.
 public protocol Adapter: Sendable {
     func loadPolicy(m: Model) async throws
 
