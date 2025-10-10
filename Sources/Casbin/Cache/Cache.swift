@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// A small in-memory cache used by ``Enforcer`` to store recent `enforce` results.
 public protocol Cache:AnyObject {
     
+    /// Updates the maximum number of entries the cache retains.
     func setCapacity(_ c: Int)
     
+    /// Reads a value for `key` if present.
     func get<K,V>(key:K,as type: V.Type) -> V? where K:Hashable&Equatable
     
+    /// Stores a value for `key`, updating recentness.
     func set<K,V>(key:K,value:V) where K:Hashable&Equatable
     
+    /// Returns whether a value exists for `k`.
     func has<K>(k:K) -> Bool where K:Hashable&Equatable
     
+    /// Removes all entries.
     func clear()
     
 }

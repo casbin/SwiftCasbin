@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// A stateful stream that combines individual policy effects into a final decision.
 public protocol EffectorStream {
     func next() -> Bool
     func explain() -> [Int]?
     mutating func pushEffect(eft:Effect) -> Bool
 }
+/// Builds new ``EffectorStream`` instances for a given effect expression.
 public protocol Effector {
     func newStream(expr:String,cap:Int) -> EffectorStream
 }
 
 
+/// Default implementation that supports common Casbin effect expressions.
 public struct DefaultEffectStream {
     var done:Bool
     var res: Bool
@@ -96,6 +99,7 @@ extension DefaultEffectStream : EffectorStream {
 }
 
 
+/// Default ``Effector`` that understands the built-in effect expressions.
 public struct DefaultEffector: Effector {
     public func newStream(expr: String, cap: Int) -> EffectorStream {
         assert(cap > 0)
@@ -117,4 +121,3 @@ public struct DefaultEffector: Effector {
     
     
 }
-

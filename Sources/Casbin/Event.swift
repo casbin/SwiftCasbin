@@ -14,11 +14,13 @@
 
 import Foundation
 
+/// Event types emitted by ``Enforcer``.
 public enum Event: EventKey, Sendable {
     case PolicyChange
     case ClearCache
 }
 
+/// Payload for an ``Event`` emitted by ``Enforcer``.
 public enum EventData: CustomStringConvertible, Sendable {
     public var description: String {
         switch self {

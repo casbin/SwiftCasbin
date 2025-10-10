@@ -15,6 +15,7 @@
 
 
 
+/// Represents a loaded Casbin model and its associated policy AST.
 public protocol Model: Sendable {
     func addDef(sec:String,key:String,value:String) -> Bool
     func buildRolelinks(rm:RoleManager) -> CasbinResult<Void>

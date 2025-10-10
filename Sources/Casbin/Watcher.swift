@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Watchers observe policy changes and propagate notifications to external systems.
 public protocol Watcher {
     func setUpdateCallback(cb:@escaping () -> Void)
     func update(eventData:EventData)
