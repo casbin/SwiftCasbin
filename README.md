@@ -1,9 +1,18 @@
 SwiftCasbin
 ====
 
+![Swift 6](https://img.shields.io/badge/Swift-6.0-orange)
+![iOS 18+](https://img.shields.io/badge/iOS-18%2B-blue)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue)
+![tvOS 18+](https://img.shields.io/badge/tvOS-18%2B-blue)
+![watchOS 11+](https://img.shields.io/badge/watchOS-11%2B-blue)
+![visionOS 2+](https://img.shields.io/badge/visionOS-2%2B-blue)
+![Linux](https://img.shields.io/badge/Linux-supported-green)
+![Windows](https://img.shields.io/badge/Windows-experimental-lightgrey)
+
 **News**: still worry about how to write the correct Casbin policy? ``Casbin online editor`` is coming to help! Try it at: http://casbin.org/editor/
 
-Casbin is a powerful and efficient open-source access control library for Python projects. It provides support for enforcing authorization based on various [access control models](https://en.wikipedia.org/wiki/Computer_security_model).
+SwiftCasbin is a powerful and efficient access control library for Swift projects. It provides support for enforcing authorization based on various [access control models](https://en.wikipedia.org/wiki/Computer_security_model).
 
 ## All the languages supported by Casbin:
 
@@ -27,6 +36,9 @@ production-ready | production-ready | beta-test | production-ready
 - [Online editor](#online-editor)
 - [Tutorials](#tutorials)
 - [Get started](#get-started)
+- [Quick start](#quick-start)
+- [Caching](#caching)
+- [Concurrency Model](#concurrency-model)
 - [Policy management](#policy-management)
 - [Policy persistence](#policy-persistence)
 - [Role manager](#role-manager)
@@ -138,13 +150,13 @@ https://casbin.org/docs/tutorials
 
 SwiftCasbin supports the following platforms:
 
-- **iOS** 16.0+
-- **macOS** 13.0+
-- **watchOS** 9.0+
-- **tvOS** 16.0+
-- **visionOS** 1.0+
-- **Linux** (Swift 6.0+)
-- **Windows** (Swift 6.0+)
+- iOS 18.0+
+- macOS 15.0+
+- watchOS 11.0+
+- tvOS 18.0+
+- visionOS 2.0+
+- Linux (Swift 6.0+)
+- Windows (Swift 6.0+)
 
 ### Requirements
 
@@ -169,19 +181,100 @@ let model = try await DefaultModel.from(file: "examples/rbac_model.conf")
 let adapter = FileAdapter(filePath: "examples/rbac_policy.csv")
 let enforcer = try await Enforcer(m: model, adapter: adapter)
 
-// Check permissions
-let allowed = try enforcer.enforce("alice", "data1", "read").get()
+// Check permissions (actor call requires await)
+let allowed = try await enforcer.enforce("alice", "data1", "read").get()
 ```
 
-3. Besides the static policy file, Casbin also provides API for permission management at run-time. For example, You can get all the roles assigned to a user as below:
+3. Besides the static policy file, Casbin also provides API for permission management at run-time. For example, you can get all the roles assigned to a user as below:
 
 ```swift
-e.getRoles(for: "bob", domain: nil)
+let roles = await enforcer.getRoles(for: "bob", domain: nil)
 ```
 
 See [Policy management APIs](#policy-management) for more usage.
 
 4. Please refer to the ``tests`` files for more usage.
+
+## Quick start
+
+Create an Enforcer from a model and adapter, then call `enforce`.
+
+```swift
+import Casbin
+
+// Load model + policy from files (async/await)
+let model = try await DefaultModel.from(file: "examples/basic_model.conf")
+let adapter = FileAdapter(filePath: "examples/basic_policy.csv")
+let e = try await Enforcer(m: model, adapter: adapter)
+
+// Enforce using Sendable values
+let ok = try await e.enforce("alice", "data1", "read").get()
+print("authorized?", ok)
+
+// Enable in-memory LRU cache for enforce results (optional)
+await e.enableMemoryCache(capacity: 500)
+```
+
+Register a custom function (optional):
+
+```swift
+// Add a custom key-match function available to the model's matcher
+await e.addFunction(
+    fname: "keyMatchCustom",
+    f: Util.toExpressionFunction(name: "keyMatchCustom") { s1, s2 in
+        Util.keyMatch(s1, s2)
+    }
+)
+```
+
+Programmatic model construction (no files):
+
+```swift
+let m = DefaultModel()
+_ = m.addDef(sec: "r", key: "r", value: "sub, obj, act")
+_ = m.addDef(sec: "p", key: "p", value: "sub, obj, act")
+_ = m.addDef(sec: "e", key: "e", value: "some(where (p.eft == allow))")
+_ = m.addDef(sec: "m", key: "m", value: "r.sub == p.sub && r.obj == p.obj && r.act == p.act")
+
+let e2 = try await Enforcer(m: m, adapter: MemoryAdapter())
+_ = try await e2.addPolicy(params: ["alice", "data1", "read"]) // p, alice, data1, read
+let ok2 = try await e2.enforce("alice", "data1", "read").get()
+```
+
+## Caching
+
+SwiftCasbin provides an optional in-memory LRU cache for `enforce` results. This can dramatically reduce cost for repeated requests with identical tuples.
+
+- Enable cache:
+
+```swift
+await e.enableMemoryCache(capacity: 200) // default 200
+```
+
+- Implementation:
+  - O(1) get/set using a lock-protected dictionary + doubly-linked list.
+  - Keys are computed via Swift’s `Hasher` from the `Sendable` arguments to `enforce`.
+  - Thread-safe; designed to be used inside the `Enforcer` actor.
+
+## Concurrency Model
+
+- Actor boundary
+  - `Enforcer` is an `actor`. Its mutable state and public APIs are actor-isolated.
+  - Event callbacks use `EventCallback = @Sendable (EventData, Enforcer) async -> Void`.
+  - Public APIs take `Sendable` where needed (e.g., `enforce(_ rvals: any Sendable...)`).
+
+- Internal data structures
+  - `DefaultModel` stores `[String:[String:Assertion]]` behind a `Synchronization.Mutex`.
+  - The in-memory `LruCache` (used by `DefaultCache`) uses `Synchronization.Mutex` for O(1) get/set.
+  - We avoid `@unchecked Sendable` entirely.
+
+- Rationale
+  - The actor provides clear isolation for the high-level API and eventing.
+  - Tiny, hot paths (model map and LRU) use `Mutex` for minimal overhead without extra actor hops.
+  - If you need to share a cache across actors, wrap it in an `actor` while keeping the same `Cache` surface.
+
+- Building with warnings-as-errors
+  - The repository CI runs `swift build/test -Xswiftc -warnings-as-errors` to keep the codebase warning-free.
 
 ## Policy management
 
