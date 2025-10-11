@@ -77,12 +77,18 @@ public final class FileAdapter {
 
 extension FileAdapter: Adapter {
     public func loadPolicy(m: Model) -> EventLoopFuture<Void> {
-        loadPolicyFile(m: m, handler:Util.loadPolicyLine(line:m:))
+        // Wrap the handler in an explicit @Sendable closure to avoid warnings
+        // about converting a non-sendable function to a @Sendable type.
+        loadPolicyFile(m: m, handler: { (line: String, model: Model) in
+            Util.loadPolicyLine(line: line, m: model)
+        })
     }
 
     public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
-        loadFilteredPolicyFile(m: m, filter: f, handler: Util.loadFilteredPolicyLine).map {
-            self.isFiltered = $0
+        loadFilteredPolicyFile(m: m, filter: f, handler: { (line: String, model: Model, filter: Filter) in
+            Util.loadFilteredPolicyLine(line: line, m: model, f: filter)
+        }).map { isFiltered in
+            self.isFiltered = isFiltered
         }
     }
 

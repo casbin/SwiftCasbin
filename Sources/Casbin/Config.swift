@@ -14,7 +14,7 @@
 
 import NIO
 
-public struct Config {
+public struct Config: Sendable {
     var data: [String:[String:String]] = [:]
     static let DEFAULT_SECTION = "default"
     static let DEFAULT_COMMENT:Character = "#"
