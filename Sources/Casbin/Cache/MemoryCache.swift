@@ -14,7 +14,9 @@
 
 import NIOConcurrencyHelpers
 
-public final class DefaultCache:Cache {
+/// A simple in-memory LRU-backed cache used by the Enforcer.
+/// - Note: Thread-safety is provided by the underlying LruCache.
+public final class DefaultCache: Cache {
     init(lru: LruCache<Int, Bool>) {
         self.lru = lru
     }
@@ -41,7 +43,9 @@ public final class DefaultCache:Cache {
     }
 }
 
-final class LruCache<Key:Hashable,Value> {
+/// A minimal O(1) LRU cache using a dictionary + doubly linked list.
+/// Operations are protected by a `NIOLock` and are safe for concurrent use.
+final class LruCache<Key: Hashable, Value> {
     private class ListNode {
             var key: Key?
             var value: Value?
@@ -53,9 +57,10 @@ final class LruCache<Key:Hashable,Value> {
                 self.value = value
             }
         }
-    private var storage:[Key:ListNode] = [:]
+    private var storage: [Key: ListNode] = [:]
+    /// Maximum number of entries. When full, the least-recently-used entry is evicted.
     var capacity = 0
-    private var lock:Lock
+    private var lock: NIOLock
     
     /// head's nextNode is the actual first node in the Double Linked-list.
     private var head = ListNode()
@@ -63,63 +68,58 @@ final class LruCache<Key:Hashable,Value> {
     private var tail = ListNode()
     
     init(capacity: Int) {
-            self.capacity = capacity
-            head.nextNode = tail
-            tail.prevNode = head
-            self.lock = .init()
+        self.capacity = capacity
+        head.nextNode = tail
+        tail.prevNode = head
+        self.lock = .init()
     }
-    /// Remove Node in the Double Linked-list.
-        private func remove(node: ListNode) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            node.prevNode?.nextNode = node.nextNode
-            node.nextNode?.prevNode = node.prevNode
-            guard let key = node.key else { return }
-            storage.removeValue(forKey: key)
-     }
+    /// Remove a node from the linked list and storage. Caller must hold the lock.
+    private func removeUnlocked(_ node: ListNode) {
+        node.prevNode?.nextNode = node.nextNode
+        node.nextNode?.prevNode = node.prevNode
+        if let key = node.key { storage.removeValue(forKey: key) }
+    }
     func clear() {
         self.lock.lock()
         defer { self.lock.unlock() }
         self.storage = [:]
     }
-    /// insertion is always fullfilled on the Head side.
-        private func insertToHead(node: ListNode) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            head.nextNode?.prevNode = node
-            node.nextNode = head.nextNode
-            node.prevNode = head
-            head.nextNode = node
-            guard let key = node.key else { return }
-            storage.updateValue(node, forKey: key)
-        }
+    /// Insert a node at the head (most recently used). Caller must hold the lock.
+    private func insertToHeadUnlocked(_ node: ListNode) {
+        head.nextNode?.prevNode = node
+        node.nextNode = head.nextNode
+        node.prevNode = head
+        head.nextNode = node
+        if let key = node.key { storage[key] = node }
+    }
     /// When the cache hit happen, remove the node what you get and insert to Head side again.
-       func getValue(forKey key: Key) -> Value? {
+    func getValue(forKey key: Key) -> Value? {
         self.lock.lock()
         defer { self.lock.unlock() }
-           if !storage.contains(where: { $0.key == key }) {
-               return nil
-           }
-           guard let node = storage[key] else { return nil }
-           remove(node: node)
-           insertToHead(node: node)
-           return node.value
-       }
+        guard let node = storage[key] else { return nil }
+        removeUnlocked(node)
+        insertToHeadUnlocked(node)
+        return node.value
+    }
     /// Push your value and if there is same value, remove that automatically.
         /// if not, remove Least Recently Used Node and push new node.
-        func setValue(value: Value, forKey key: Key) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            let newNode = ListNode(key: key, value: value)
-            if storage.contains(where: { $0.key == key }){
-                guard let oldNode = storage[key] else { return }
-                remove(node: oldNode)
-            } else {
-                if storage.count >= capacity {
-                    guard let tailNode = tail.prevNode else { return }
-                    remove(node: tailNode) // remove Least Recently Used Node
-                }
-            }
-            insertToHead(node: newNode)
+    func setValue(value: Value, forKey key: Key) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        // Update existing
+        if let existing = storage[key] {
+            existing.value = value
+            removeUnlocked(existing)
+            insertToHeadUnlocked(existing)
+            return
         }
+        // Capacity guard
+        guard capacity > 0 else { return }
+        // Evict if full
+        if storage.count >= capacity, let last = tail.prevNode, last !== head {
+            removeUnlocked(last)
+        }
+        let newNode = ListNode(key: key, value: value)
+        insertToHeadUnlocked(newNode)
+    }
 }

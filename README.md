@@ -1,6 +1,7 @@
 SwiftCasbin
 ====
 
+[![CI](https://github.com/casbin/SwiftCasbin/actions/workflows/ci.yml/badge.svg)](https://github.com/casbin/SwiftCasbin/actions/workflows/ci.yml)
 ![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange)
 ![iOS](https://img.shields.io/badge/iOS-✓-blue)
 ![macOS](https://img.shields.io/badge/macOS-✓-blue)

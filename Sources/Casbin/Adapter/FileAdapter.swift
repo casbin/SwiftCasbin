@@ -14,8 +14,8 @@
 
 import NIO
 
-public typealias LoadPolicyFileHandler = (String,Model) -> Void
-public typealias LoadFilteredPolicyFileHandler = (String,Model,Filter) -> Bool
+public typealias LoadPolicyFileHandler = @Sendable (String,Model) -> Void
+public typealias LoadFilteredPolicyFileHandler = @Sendable (String,Model,Filter) -> Bool
 
 public final class FileAdapter {
     var filePath:String
