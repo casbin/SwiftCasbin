@@ -74,7 +74,7 @@ extension CoreApi {
     }
     
     
-    private func afterOperatePolicy<T>(sec:String,oped:Bool,d:EventData,t:T) -> EventLoopFuture<T> {
+    private func afterOperatePolicy<T: Sendable>(sec:String,oped:Bool,d:EventData,t:T) -> EventLoopFuture<T> {
         if oped {
             emit(e: Event.PolicyChange, d: d)
             emit(e: Event.ClearCache, d: EventData.ClearCache)
@@ -88,4 +88,3 @@ extension CoreApi {
         return eventLoopGroup.next().makeSucceededFuture(t)
     }
 }
-
