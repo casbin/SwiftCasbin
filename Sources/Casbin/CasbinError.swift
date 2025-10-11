@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import Foundation
-public enum CasbinError:Error,LocalizedError,CustomStringConvertible {
+public enum CasbinError: Error, LocalizedError, CustomStringConvertible, Sendable {
     public var description: String {
         switch self {
         case .RBAC_ERROR(let e):
@@ -36,7 +36,7 @@ public enum CasbinError:Error,LocalizedError,CustomStringConvertible {
     case OtherErrorMessage(String)
     case IoError(String)
     
-    public enum MatchError: CustomStringConvertible {
+    public enum MatchError: CustomStringConvertible, Sendable {
         public var description: String {
             switch self {
            
@@ -51,7 +51,7 @@ public enum CasbinError:Error,LocalizedError,CustomStringConvertible {
         case MatchFuntionArgsNotString
     }
      
-    public enum RbacError: CustomStringConvertible {
+    public enum RbacError: CustomStringConvertible, Sendable {
         public var description: String {
             switch self {
             
@@ -75,7 +75,7 @@ public enum CasbinError:Error,LocalizedError,CustomStringConvertible {
         case InvalidFieldVaulesParameter
     }
     
-    public enum ModelError:CustomStringConvertible {
+    public enum ModelError: CustomStringConvertible, Sendable {
         public var description: String {
             switch self {
            
