@@ -403,8 +403,10 @@ extension Enforcer: CoreApi {
         if autoBuildRoleLinks {
             do {
                 try self.buildRoleLinks().get()
-            } catch  {
-                return .failure(error as! CasbinError)
+            } catch let e as CasbinError {
+                return .failure(e)
+            } catch {
+                return .failure(.OtherErrorMessage(String(describing: error)))
             }
         }
         return registerGFunctions()
@@ -492,5 +494,4 @@ extension Enforcer: CoreApi {
         autoBuildRoleLinks
     }
 }
-
 
