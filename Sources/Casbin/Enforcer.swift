@@ -422,6 +422,7 @@ extension Enforcer: CoreApi {
         return loadPolicy()
     }
     
+    @available(*, deprecated, renamed: "loadFilteredPolicy(_:)" )
     public func loadFilterdPolicy(_ f: Filter) -> EventLoopFuture<Void> {
         model.clearPolicy()
         return adapter.loadFilteredPolicy(m: model, f: f).flatMap {
@@ -432,6 +433,13 @@ extension Enforcer: CoreApi {
             }
             return self.eventLoopGroup.next().makeSucceededVoidFuture()
         }
+    }
+
+    // Convenience API with correct spelling that forwards to the existing implementation.
+    // This avoids a source-breaking change to the CoreApi protocol, while offering a
+    // correctly-named entry point for users.
+    public func loadFilteredPolicy(_ f: Filter) -> EventLoopFuture<Void> {
+        self.loadFilterdPolicy(f)
     }
     
     public var isEnabled: Bool {
@@ -494,4 +502,3 @@ extension Enforcer: CoreApi {
         autoBuildRoleLinks
     }
 }
-
