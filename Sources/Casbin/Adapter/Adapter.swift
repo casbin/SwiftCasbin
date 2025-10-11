@@ -14,7 +14,7 @@
 
 import NIO
 
-public struct Filter {
+public struct Filter: Sendable {
     public init(p: [String], g: [String]) {
         self.p = p
         self.g = g
