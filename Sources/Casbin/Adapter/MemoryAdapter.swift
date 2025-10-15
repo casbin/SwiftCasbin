@@ -40,17 +40,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededVoidFuture()
     }
 
-    /// Async/await version of loadPolicy for Swift 6 concurrency
-    public func loadPolicy(m: Model) async throws {
-        for line in policy {
-            let sec = line[0]
-            let ptype = line[1]
-            let rule = Array(line.dropFirst(2))
-            if let ast = m.getModel()[sec]?[ptype] {
-                ast.policy.append(rule)
-            }
-        }
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
         for line in policy {
@@ -83,36 +73,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededVoidFuture()
     }
 
-    /// Async/await version of loadFilteredPolicy for Swift 6 concurrency
-    public func loadFilteredPolicy(m: Model, f: Filter) async throws {
-        for line in policy {
-            let sec = line[0]
-            let ptype = line[1]
-            let rule = Array(line.dropFirst(2))
-            var isFiltered = false
-            if sec == "p" {
-                for (i,r) in f.p.enumerated() {
-                    if !r.isEmpty && r != rule[i] {
-                        isFiltered = true
-                    }
-                }
-            }
-            if sec == "g" {
-                for (i,r) in f.g.enumerated() {
-                    if !r.isEmpty && r != rule[i] {
-                        isFiltered = true
-                    }
-                }
-            }
-            if !isFiltered {
-                if let ast = m.getModel()[sec]?[ptype] {
-                    ast.policy.append(rule)
-                }
-            } else {
-                self.isFiltered = true
-            }
-        }
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func savePolicy(m: Model) -> EventLoopFuture<Void> {
         self.policy = []
@@ -139,30 +100,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededVoidFuture()
     }
 
-    /// Async/await version of savePolicy for Swift 6 concurrency
-    public func savePolicy(m: Model) async throws {
-        self.policy = []
-        if let astMap = m.getModel()["p"] {
-            for (ptype,ast) in astMap {
-                for policy in ast.policy {
-                    var rule = policy
-                    rule.insert(ptype, at: 0)
-                    rule.insert("p", at: 0)
-                    self.policy.insert(rule)
-                }
-            }
-        }
-        if let astMap = m.getModel()["g"] {
-            for (ptype,ast) in astMap {
-                for policy in ast.policy {
-                    var rule = policy
-                    rule.insert(ptype, at: 0)
-                    rule.insert("g", at: 0)
-                    self.policy.insert(rule)
-                }
-            }
-        }
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func clearPolicy() -> EventLoopFuture<Void> {
         self.policy = []
@@ -170,11 +108,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededVoidFuture()
     }
 
-    /// Async/await version of clearPolicy for Swift 6 concurrency
-    public func clearPolicy() async throws {
-        self.policy = []
-        self.isFiltered = false
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func addPolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
         var rule = rule
@@ -183,13 +117,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededFuture(self.policy.insert(rule).inserted)
     }
 
-    /// Async/await version of addPolicy for Swift 6 concurrency
-    public func addPolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
-        var rule = rule
-        rule.insert(ptype, at: 0)
-        rule.insert(sec, at: 0)
-        return self.policy.insert(rule).inserted
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func addPolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
         var allAdded = true
@@ -209,24 +137,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededFuture(allAdded)
     }
 
-    /// Async/await version of addPolicies for Swift 6 concurrency
-    public func addPolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
-        var allAdded = true
-        let rules:[[String]] = rules.map { rule in
-            var rule = rule
-            rule.insert(ptype, at: 0)
-            rule.insert(sec, at: 0)
-            return rule
-        }
-        for rule in rules {
-            if policy.contains(rule) {
-                allAdded = false
-                return allAdded
-            }
-        }
-        self.policy = self.policy.union(rules)
-        return allAdded
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func removePolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
         var rule = rule
@@ -235,13 +146,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededFuture(policy.remove(rule) != nil)
     }
 
-    /// Async/await version of removePolicy for Swift 6 concurrency
-    public func removePolicy(sec: String, ptype: String, rule: [String]) async throws -> Bool {
-        var rule = rule
-        rule.insert(ptype, at: 0)
-        rule.insert(sec, at: 0)
-        return policy.remove(rule) != nil
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func removePolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
         var allRemoved = true
@@ -266,29 +171,7 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededFuture(allRemoved)
     }
 
-    /// Async/await version of removePolicies for Swift 6 concurrency
-    public func removePolicies(sec: String, ptype: String, rules: [[String]]) async throws -> Bool {
-        var allRemoved = true
-        let  rules:[[String]] = rules.map { rule in
-            var rule = rule
-            rule.insert(ptype, at: 0)
-            rule.insert(sec, at: 0)
-            return rule
-        }
-        // Atomic semantics
-        for rule in rules {
-            if !policy.contains(rule) {
-                allRemoved = false
-                break
-            }
-        }
-        if allRemoved {
-            for rule in rules {
-                _ = self.policy.remove(rule)
-            }
-        }
-        return allRemoved
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 
     public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) -> EventLoopFuture<Bool> {
         if fieldValues.isEmpty {
@@ -319,33 +202,5 @@ extension MemoryAdapter: Adapter {
         return eventloop.makeSucceededFuture(res)
     }
 
-    /// Async/await version of removeFilteredPolicy for Swift 6 concurrency
-    public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) async throws -> Bool {
-        if fieldValues.isEmpty {
-            return false
-        }
-        var tmp:Set<[String]> = []
-        var res = false
-        for rule in policy {
-            if sec == rule[0] && ptype == rule [1] {
-                var matched = true
-                for (i,fieldValue) in fieldValues.enumerated() {
-                    if !fieldValue.isEmpty
-                        && rule[fieldIndex + i + 2] != fieldValue {
-                        matched = false
-                        break
-                    }
-                }
-                if matched {
-                    res = true
-                } else {
-                    tmp.insert(rule)
-                }
-            } else {
-                tmp.insert(rule)
-            }
-        }
-        self.policy = tmp
-        return res
-    }
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 }
