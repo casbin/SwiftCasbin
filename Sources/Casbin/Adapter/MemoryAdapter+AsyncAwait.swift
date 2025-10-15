@@ -1,6 +1,7 @@
 import NIO
 
 // Async/Await overloads for MemoryAdapter
+@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)
 extension MemoryAdapter {
 
     // MARK: Load
@@ -160,4 +161,3 @@ extension MemoryAdapter {
         return res
     }
 }
-
