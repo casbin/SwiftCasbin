@@ -2,7 +2,7 @@ import Testing
 import Casbin
 import NIO
 
-@Suite("Config parsing")
+@Suite("Config parsing", .timeLimit(.minutes(1)))
 struct ConfigTests {
     @Test("load from file and get/set")
     func testGet() throws {

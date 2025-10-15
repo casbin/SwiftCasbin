@@ -1,7 +1,7 @@
 import Testing
 import Casbin
 
-@Suite("Key/Glob/IP match utilities")
+@Suite("Key/Glob/IP match utilities", .timeLimit(.minutes(1)))
 struct KeyMatchTests {
     @Test("keyMatch")
     func testKeyMatch() {
@@ -83,4 +83,3 @@ struct KeyMatchTests {
         #expect(!Util.globMatch("/prefix/subprefix/foobar", "*/foo/*"))
     }
 }
-

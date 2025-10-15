@@ -1,7 +1,7 @@
 import Testing
 import Casbin
 
-@Suite("Utilities: CSV + assertion escaping")
+@Suite("Utilities: CSV + assertion escaping", .timeLimit(.minutes(1)))
 struct UtilsTests {
     @Test("escapeAssertion replaces dots with underscores")
     func testEscapeAssertion() {
