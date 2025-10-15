@@ -81,7 +81,7 @@ public struct Util {
             return res
         }
     }
-    public static func loadPolicyLine(line:String,m:Model) {
+    @Sendable public static func loadPolicyLine(line:String,m:Model) {
         if line.isEmpty || line.starts(with: "#") {
             return
         }
@@ -96,7 +96,7 @@ public struct Util {
             }
         }
     }
-   public static func loadFilteredPolicyLine(line:String,m:Model,f:Filter) -> Bool {
+   @Sendable public static func loadFilteredPolicyLine(line:String,m:Model,f:Filter) -> Bool {
         if line.isEmpty || line.starts(with: "#") {
             return false
         }
