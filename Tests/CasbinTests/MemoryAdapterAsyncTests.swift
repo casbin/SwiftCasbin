@@ -36,8 +36,8 @@ struct MemoryAdapterAsyncTests {
             Issue.record("Policy not found in model")
             return
         }
-        // Note: policy array includes ptype as first element
-        #expect(ast.policy.contains(["p", "alice", "data1", "read"]))
+        // Model policies do NOT include ptype; only the rule fields
+        #expect(ast.policy.contains(["alice", "data1", "read"]))
     }
 
     @Test("async addPolicies and savePolicy")
@@ -97,7 +97,7 @@ struct MemoryAdapterAsyncTests {
         #expect(ast.policy.isEmpty)
     }
 
-    @Test("async removePolicies", .disabled("Pre-existing bug in removePolicies logic - checks if policy.contains() instead of !policy.contains()"))
+    @Test("async removePolicies")
     func testAsyncRemovePolicies() async throws {
         let adapter = makeAdapter()
         let model = makeModel()
@@ -113,9 +113,9 @@ struct MemoryAdapterAsyncTests {
         // Note: removePolicies has a bug - it checks if policies exist and returns false
         // This is pre-existing behavior in the original implementation
         let removed = try await adapter.removePolicies(sec: "p", ptype: "p", rules: rules)
+        #expect(removed == true)
 
-        // Due to the bug, removed will be false even though policies were removed
-        // Let's just verify the policies are actually gone
+        // Verify the policies are actually gone
         try await adapter.loadPolicy(m: model)
         guard let ast = model.getModel()["p"]?["p"] else {
             // No policies - this is expected
@@ -172,8 +172,7 @@ struct MemoryAdapterAsyncTests {
             return
         }
         #expect(ast.policy.count == 1)
-        // Note: policy array includes ptype as first element
-        #expect(ast.policy.contains(["p", "bob", "data1", "read"]))
+        #expect(ast.policy.contains(["bob", "data1", "read"]))
     }
 
     @Test("async loadFilteredPolicy")

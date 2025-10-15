@@ -31,7 +31,8 @@ extension MemoryAdapter: Adapter {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            // Model policies should NOT include ptype; drop sec and ptype headers
+            let rule = Array(line.dropFirst(2))
             if let ast = m.getModel()[sec]?[ptype] {
                 ast.policy.append(rule)
             }
@@ -44,7 +45,7 @@ extension MemoryAdapter: Adapter {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            let rule = Array(line.dropFirst(2))
             if let ast = m.getModel()[sec]?[ptype] {
                 ast.policy.append(rule)
             }
@@ -55,18 +56,18 @@ extension MemoryAdapter: Adapter {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            let rule = Array(line.dropFirst(2))
             var isFiltered = false
             if sec == "p" {
                 for (i,r) in f.p.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
             }
             if sec == "g" {
                 for (i,r) in f.g.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
@@ -87,18 +88,18 @@ extension MemoryAdapter: Adapter {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            let rule = Array(line.dropFirst(2))
             var isFiltered = false
             if sec == "p" {
                 for (i,r) in f.p.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
             }
             if sec == "g" {
                 for (i,r) in f.g.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
@@ -117,25 +118,21 @@ extension MemoryAdapter: Adapter {
         self.policy = []
         if let astMap = m.getModel()["p"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("p", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
         if let astMap = m.getModel()["g"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("g", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
@@ -147,25 +144,21 @@ extension MemoryAdapter: Adapter {
         self.policy = []
         if let astMap = m.getModel()["p"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("p", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
         if let astMap = m.getModel()["g"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("g", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
@@ -258,14 +251,17 @@ extension MemoryAdapter: Adapter {
             rule.insert(sec, at: 0)
             return rule
         }
+        // Atomic semantics: if any rule doesn't exist, do not remove any and return false.
         for rule in rules {
-            if policy.contains(rule) {
+            if !policy.contains(rule) {
                 allRemoved = false
-                return eventloop.makeSucceededFuture(allRemoved)
+                break
             }
         }
-        for rule in rules {
-            self.policy.remove(rule)
+        if allRemoved {
+            for rule in rules {
+                _ = self.policy.remove(rule)
+            }
         }
         return eventloop.makeSucceededFuture(allRemoved)
     }
@@ -279,14 +275,17 @@ extension MemoryAdapter: Adapter {
             rule.insert(sec, at: 0)
             return rule
         }
+        // Atomic semantics
         for rule in rules {
-            if policy.contains(rule) {
+            if !policy.contains(rule) {
                 allRemoved = false
-                return allRemoved
+                break
             }
         }
-        for rule in rules {
-            self.policy.remove(rule)
+        if allRemoved {
+            for rule in rules {
+                _ = self.policy.remove(rule)
+            }
         }
         return allRemoved
     }
