@@ -18,43 +18,46 @@ public final class MemoryAdapter {
     public init(on eventloop: EventLoop) {
         self.eventloop = eventloop
     }
-    
+
     var policy:Set<[String]> = []
     public var isFiltered: Bool = false
     public var eventloop: EventLoop
 }
 
 extension MemoryAdapter: Adapter {
-   
-    
+
+
     public func loadPolicy(m: Model) -> EventLoopFuture<Void> {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            // Model policies should NOT include ptype; drop sec and ptype headers
+            let rule = Array(line.dropFirst(2))
             if let ast = m.getModel()[sec]?[ptype] {
                 ast.policy.append(rule)
             }
         }
         return eventloop.makeSucceededVoidFuture()
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func loadFilteredPolicy(m: Model, f: Filter) -> EventLoopFuture<Void> {
         for line in policy {
             let sec = line[0]
             let ptype = line[1]
-            let rule = Array(line[1...])
+            let rule = Array(line.dropFirst(2))
             var isFiltered = false
             if sec == "p" {
                 for (i,r) in f.p.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
             }
             if sec == "g" {
                 for (i,r) in f.g.enumerated() {
-                    if !r.isEmpty && r != rule[i+1] {
+                    if !r.isEmpty && r != rule[i] {
                         isFiltered = true
                     }
                 }
@@ -69,50 +72,53 @@ extension MemoryAdapter: Adapter {
         }
         return eventloop.makeSucceededVoidFuture()
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func savePolicy(m: Model) -> EventLoopFuture<Void> {
         self.policy = []
         if let astMap = m.getModel()["p"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("p", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
         if let astMap = m.getModel()["g"] {
             for (ptype,ast) in astMap {
-                ptype.forEach { sec in
-                    for policy in ast.policy {
-                        var rule = policy
-                        rule.insert(ptype, at: 0)
-                        rule.insert(String(sec), at: 0)
-                        self.policy.insert(rule)
-                    }
+                for policy in ast.policy {
+                    var rule = policy
+                    rule.insert(ptype, at: 0)
+                    rule.insert("g", at: 0)
+                    self.policy.insert(rule)
                 }
             }
         }
         return eventloop.makeSucceededVoidFuture()
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func clearPolicy() -> EventLoopFuture<Void> {
         self.policy = []
         self.isFiltered = false
         return eventloop.makeSucceededVoidFuture()
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func addPolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
         var rule = rule
         rule.insert(ptype, at: 0)
         rule.insert(sec, at: 0)
         return eventloop.makeSucceededFuture(self.policy.insert(rule).inserted)
-        
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func addPolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
         var allAdded = true
         let rules:[[String]] = rules.map { rule in
@@ -130,14 +136,18 @@ extension MemoryAdapter: Adapter {
         self.policy = self.policy.union(rules)
         return eventloop.makeSucceededFuture(allAdded)
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func removePolicy(sec: String, ptype: String, rule: [String]) -> EventLoopFuture<Bool> {
         var rule = rule
         rule.insert(ptype, at: 0)
         rule.insert(sec, at: 0)
         return eventloop.makeSucceededFuture(policy.remove(rule) != nil)
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func removePolicies(sec: String, ptype: String, rules: [[String]]) -> EventLoopFuture<Bool> {
         var allRemoved = true
         let  rules:[[String]] = rules.map { rule in
@@ -146,18 +156,23 @@ extension MemoryAdapter: Adapter {
             rule.insert(sec, at: 0)
             return rule
         }
+        // Atomic semantics: if any rule doesn't exist, do not remove any and return false.
         for rule in rules {
-            if policy.contains(rule) {
+            if !policy.contains(rule) {
                 allRemoved = false
-                return eventloop.makeSucceededFuture(allRemoved)
+                break
             }
         }
-        for rule in rules {
-            self.policy.remove(rule)
+        if allRemoved {
+            for rule in rules {
+                _ = self.policy.remove(rule)
+            }
         }
         return eventloop.makeSucceededFuture(allRemoved)
     }
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
+
     public func removeFilteredPolicy(sec: String, ptype: String, fieldIndex: Int, fieldValues: [String]) -> EventLoopFuture<Bool> {
         if fieldValues.isEmpty {
             return eventloop.makeSucceededFuture(false)
@@ -186,6 +201,6 @@ extension MemoryAdapter: Adapter {
         self.policy = tmp
         return eventloop.makeSucceededFuture(res)
     }
-    
-    
+
+    // Async/await overloads moved to MemoryAdapter+AsyncAwait.swift
 }

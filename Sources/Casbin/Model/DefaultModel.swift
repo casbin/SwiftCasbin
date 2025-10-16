@@ -223,14 +223,17 @@ extension DefaultModel:Model {
     public func removePolicies(sec:String,ptype:String,rules:[[String]]) -> Bool {
         var allRemoved = true
         if let ast = model[sec]?[ptype] {
+            // Atomic semantics: if any rule is missing, do nothing and return false
             for rule in rules {
-                if ast.policy.contains(rule) {
+                if !ast.policy.contains(rule) {
                     allRemoved = false
-                    return allRemoved
+                    break
                 }
             }
-            for rule in rules {
-                ast.policy.removeAll { $0 == rule }
+            if allRemoved {
+                for rule in rules {
+                    ast.policy.removeAll { $0 == rule }
+                }
             }
         }
         return allRemoved
