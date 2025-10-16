@@ -1,6 +1,6 @@
 import Testing
 import Casbin
-@Suite("Role Manager Tests")
+@Suite("Role Manager Tests", .timeLimit(.minutes(1)))
 struct RoleTests {
     struct Params {
         let name1: String
