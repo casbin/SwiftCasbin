@@ -6,12 +6,18 @@ import NIO
 struct MemoryAdapterAsyncTests {
 
     // Each test must shut down its EventLoopGroup or swift test may hang.
-    // Provide a helper that manages lifecycle for us.
+    // Provide a helper that manages lifecycle and properly awaits shutdown completion.
     private func withAdapter<R>(_ body: (MemoryAdapter) async throws -> R) async throws -> R {
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        defer { shutdownEventLoopGroupAsync(elg) }
         let adapter = MemoryAdapter(on: elg.next())
-        return try await body(adapter)
+        do {
+            let result = try await body(adapter)
+            try await shutdownEventLoopGroupAsync(elg)
+            return result
+        } catch {
+            try? await shutdownEventLoopGroupAsync(elg)
+            throw error
+        }
     }
 
     private func makeModel() -> DefaultModel {

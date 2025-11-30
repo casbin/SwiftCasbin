@@ -9,9 +9,9 @@ struct ConfigTests {
         let filePath = #file.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
         let pool = NIOThreadPool(numberOfThreads: 1)
         pool.start()
-        defer { shutdownThreadPoolAsync(pool) }
+        defer { shutdownThreadPoolInBackground(pool) }
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        defer { shutdownEventLoopGroupAsync(elg) }
+        defer { shutdownEventLoopGroupInBackground(elg) }
         let fileIo = NonBlockingFileIO(threadPool: pool)
 
         var config = try Config.from(file: filePath, fileIo: fileIo, on: elg.next()).wait()
@@ -36,7 +36,7 @@ struct ConfigTests {
     @Test("load from text and get/set")
     func testFromText() throws {
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        defer { shutdownEventLoopGroupAsync(elg) }
+        defer { shutdownEventLoopGroupInBackground(elg) }
         let text = #"""
             # test config
                             debug = true

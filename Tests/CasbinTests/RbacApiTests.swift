@@ -9,8 +9,8 @@ struct RbacApiTests {
         pool.start()
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
-            shutdownEventLoopGroupAsync(elg)
-            shutdownThreadPoolAsync(pool)
+            shutdownEventLoopGroupInBackground(elg)
+            shutdownThreadPoolInBackground(pool)
         }
         let fileIo = NonBlockingFileIO(threadPool: pool)
         let m = try DefaultModel.from(file: TestsfilePath + mfile, fileIo: fileIo, on: elg.next()).wait()
