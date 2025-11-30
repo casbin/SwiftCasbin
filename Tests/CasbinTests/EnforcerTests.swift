@@ -12,8 +12,8 @@ struct EnforcerTests {
         pool.start()
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
-            try? elg.syncShutdownGracefully()
-            try? pool.syncShutdownGracefully()
+            shutdownEventLoopGroupAsync(elg)
+            shutdownThreadPoolAsync(pool)
         }
         return try body(pool, elg)
     }
