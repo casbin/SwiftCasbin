@@ -39,9 +39,17 @@ func shutdownThreadPoolAsync(_ pool: NIOThreadPool) async throws {
 // These initiate shutdown but return immediately without waiting for completion.
 
 func shutdownEventLoopGroupInBackground(_ group: EventLoopGroup) {
-    group.shutdownGracefully(queue: .global()) { _ in }
+    group.shutdownGracefully(queue: .global()) { error in
+        if let error = error {
+            assertionFailure("EventLoopGroup shutdown failed in background: \(error)")
+        }
+    }
 }
 
 func shutdownThreadPoolInBackground(_ pool: NIOThreadPool) {
-    pool.shutdownGracefully(queue: .global()) { _ in }
+    pool.shutdownGracefully(queue: .global()) { error in
+        if let error = error {
+            assertionFailure("NIOThreadPool shutdown failed in background: \(error)")
+        }
+    }
 }
