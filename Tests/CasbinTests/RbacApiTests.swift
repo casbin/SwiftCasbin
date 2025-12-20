@@ -9,8 +9,16 @@ struct RbacApiTests {
         pool.start()
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
-            shutdownEventLoopGroupInBackground(elg)
-            shutdownThreadPoolInBackground(pool)
+            do {
+                try elg.syncShutdownGracefully()
+            } catch {
+                // Ignore shutdown errors in tests
+            }
+            do {
+                try pool.syncShutdownGracefully()
+            } catch {
+                // Ignore shutdown errors in tests
+            }
         }
         let fileIo = NonBlockingFileIO(threadPool: pool)
         let m = try DefaultModel.from(file: TestsfilePath + mfile, fileIo: fileIo, on: elg.next()).wait()
