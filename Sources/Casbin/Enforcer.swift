@@ -23,7 +23,7 @@ public enum EventLoopGroupProvider {
     case shared(EventLoopGroup)
     case createNew
 }
-public final class Enforcer {
+public final class Enforcer: @unchecked Sendable {
     public var storage: Storage
     public var logger: Logger
     public var model:Model

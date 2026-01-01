@@ -6,7 +6,7 @@ import NIO
 struct ConfigTests {
     @Test("load from file and get/set")
     func testGet() throws {
-        let filePath = #file.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
+        let filePath = #filePath.components(separatedBy: "ConfigTests.swift")[0] + "examples/testini.ini"
         let pool = NIOThreadPool(numberOfThreads: 1)
         pool.start()
         defer { try? pool.syncShutdownGracefully() }
