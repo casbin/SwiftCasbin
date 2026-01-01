@@ -4,7 +4,7 @@ import NIO
 extension FileAdapter {
 
     // Generic bridge from EventLoopFuture to async/await
-    private func awaitFuture<T>(_ future: EventLoopFuture<T>) async throws -> T {
+    private func awaitFuture<T: Sendable>(_ future: EventLoopFuture<T>) async throws -> T {
         try await withCheckedThrowingContinuation { cont in
             future.whenComplete { result in
                 cont.resume(with: result)
