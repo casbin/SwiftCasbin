@@ -6,10 +6,8 @@ SwiftCasbin
 [![Release](https://img.shields.io/github/v/release/casbin/SwiftCasbin)](https://github.com/casbin/SwiftCasbin/releases)
 ![iOS](https://img.shields.io/badge/iOS-✓-blue)
 ![macOS](https://img.shields.io/badge/macOS-✓-blue)
-![tvOS](https://img.shields.io/badge/tvOS-✓-blue)
-![watchOS](https://img.shields.io/badge/watchOS-✓-blue)
-![Linux](https://img.shields.io/badge/Linux-supported-green)
-![Windows](https://img.shields.io/badge/Windows-experimental-lightgrey)
+![Linux](https://img.shields.io/badge/Linux-✓-blue)
+![Windows](https://img.shields.io/badge/Windows-✓-blue)
 
 **News**: still worry about how to write the correct Casbin policy? ``Casbin online editor`` is coming to help! Try it at: http://casbin.org/editor/
 
@@ -32,7 +30,6 @@ production-ready | production-ready | beta-test | production-ready
 - [Supported models](#supported-models)
 - [How it works?](#how-it-works)
 - [Features](#features)
-- [Installation](#installation)
 - [Documentation](#documentation)
 - [Online editor](#online-editor)
 - [Tutorials](#tutorials)
