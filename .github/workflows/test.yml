@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         swiftver:
-          - swift:6.0
+          - swift:6.2
         swiftos:
           - jammy
     container: ${{ format('{0}-{1}', matrix.swiftver, matrix.swiftos) }}
