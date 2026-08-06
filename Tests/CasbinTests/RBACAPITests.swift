@@ -3,7 +3,7 @@ import NIO
 import Casbin
 
 @Suite("RBAC API", .timeLimit(.minutes(1)))
-struct RbacApiTests {
+struct RBACAPITests {
     private func withEnforcer(_ mfile: String, _ aFile: String? = nil, body: (Enforcer) throws -> Void) throws {
         let pool = NIOThreadPool(numberOfThreads: 1)
         pool.start()
