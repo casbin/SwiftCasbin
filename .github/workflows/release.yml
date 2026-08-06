@@ -1,0 +1,106 @@
+name: release
+
+# Releases are cut manually by pushing a tag — there is no automatic release
+# on merge, because Apache releases require a successful vote.
+#
+#   git tag v1.4.0-rc1 && git push origin v1.4.0-rc1  -> GitHub *pre-release* (vote candidate)
+#   git tag v1.4.0     && git push origin v1.4.0      -> GitHub release + package registry
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  # Source archives are named <prefix>-<version>-incubating-src.tar.gz,
+  # e.g. apache-casbin-swiftcasbin-1.4.0-incubating-src.tar.gz
+  ARTIFACT_PREFIX: apache-casbin-swiftcasbin
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    container: swift:6.2-jammy
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Run tests with Thread Sanitizer
+        run: swift test --sanitize=thread
+
+  release:
+    name: Release
+    needs: [verify]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          # The -rcN suffix only lives in the tag. The artifact is always named
+          # after the release version so that an RC which passes the vote can be
+          # published byte-for-byte identical as the final release.
+          BASE_VERSION="$(printf '%s' "$VERSION" | sed -E 's/-[rR][cC][0-9]*$//')"
+          if [ "$VERSION" = "$BASE_VERSION" ]; then IS_RC=false; else IS_RC=true; fi
+          {
+            echo "version=$VERSION"
+            echo "base_version=$BASE_VERSION"
+            echo "is_rc=$IS_RC"
+          } >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_REF_NAME version=$VERSION base=$BASE_VERSION is_rc=$IS_RC"
+
+      - name: Build Apache source release archive
+        id: archive
+        run: |
+          set -euo pipefail
+          NAME="${ARTIFACT_PREFIX}-${{ steps.version.outputs.base_version }}-incubating-src"
+          mkdir -p dist
+          # git archive only ever contains tracked sources (no .git, no build
+          # output); gzip -n drops the timestamp so the archive is reproducible.
+          git archive --format=tar --prefix="${NAME}/" HEAD | gzip -n > "dist/${NAME}.tar.gz"
+          (cd dist && sha512sum "${NAME}.tar.gz" > "${NAME}.tar.gz.sha512")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -l dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IS_RC: ${{ steps.version.outputs.is_rc }}
+          ARCHIVE: ${{ steps.archive.outputs.name }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_RC" = "true" ]; then
+            NOTES_FILE=$(mktemp)
+            {
+              echo "Release candidate for **${{ steps.version.outputs.base_version }}**, published for the Apache voting process."
+              echo
+              echo "\`${ARCHIVE}.tar.gz\` is the source release artifact to vote on."
+              echo "The release manager signs it locally to produce \`${ARCHIVE}.tar.gz.asc\`."
+              echo
+            } > "$NOTES_FILE"
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --prerelease \
+              --notes-file "$NOTES_FILE" \
+              --generate-notes \
+              dist/*
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*
+          fi
+
+      # Package registry: SwiftCasbin is distributed through SwiftPM, which
+      # resolves packages straight from the git tag, so a non-rc tag *is* the
+      # registry publish and needs no upload step. If the package ever also
+      # ships somewhere that does (e.g. CocoaPods `pod trunk push`), add a job
+      # here gated on `steps.version.outputs.is_rc == 'false'`.
